@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antigravity Quota</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="draggable-area">
+  <div class="widget-container" id="widgetContainer">
+    <!-- Header -->
+    <header class="widget-header">
+      <div class="header-left">
+        <svg class="spark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L15 9L22 12L15 15L12 22L9 15L2 12L9 9L12 2Z" fill="url(#sparkGrad)"/>
+          <defs>
+            <linearGradient id="sparkGrad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#38bdf8"/>
+              <stop offset="1" stop-color="#818cf8"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <span class="widget-title">Antigravity Quota</span>
+      </div>
+      <div class="header-controls no-drag">
+        <button class="icon-btn" id="btnMiniMode" title="迷你胶囊模式 (双击亦可切换)">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="7" width="18" height="10" rx="5" />
+            <circle cx="8" cy="12" r="2" fill="currentColor"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="btnTheme" title="切换深浅主题">
+          <svg class="theme-icon-sun" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+          </svg>
+          <svg class="theme-icon-moon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="btnPinTopRight" title="固定到右上角">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 3l5 5-4 4-2-2-4 4 1 1-2 2-4-4 2-2 1 1 4-4-2-2 4-4z"/>
+          </svg>
+        </button>
+        <button class="icon-btn" id="btnSettings" title="设置">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+        <button class="icon-btn close-btn" id="btnHide" title="最小化到托盘">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Mini Capsule Bar (Item 1) -->
+    <div class="mini-bar" id="miniBar">
+      <div class="mini-section" id="miniGemini5h" title="Gemini 5-Hour 额度">
+        <span class="mini-dot status-normal" id="miniDot5h"></span>
+        <span class="mini-label">5h</span>
+        <span class="mini-val" id="mini5hVal">--%</span>
+      </div>
+      <div class="mini-divider"></div>
+      <div class="mini-section" id="miniGeminiWeekly" title="Gemini Weekly 额度">
+        <span class="mini-dot status-normal" id="miniDotWeekly"></span>
+        <span class="mini-label">周</span>
+        <span class="mini-val" id="miniWeeklyVal">--%</span>
+      </div>
+      <div class="mini-actions no-drag">
+        <button class="mini-btn" id="btnMiniExpand" title="展开为完整卡片 (双击亦可)">
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Quota Content -->
+    <main class="quota-content">
+      <!-- Gemini Section -->
+      <section class="model-group">
+        <div class="group-header">
+          <span class="group-title">Gemini Models</span>
+        </div>
+        
+        <div class="quota-row" id="rowGeminiWeekly">
+          <div class="quota-info">
+            <div class="quota-label">Weekly</div>
+            <div class="quota-reset" id="geminiWeeklyReset">-</div>
+          </div>
+          <div class="quota-val-container">
+            <span class="quota-delta" id="geminiWeeklyDelta"></span>
+            <span class="quota-percent" id="geminiWeeklyPct">--%</span>
+            <div class="ring-wrap">
+              <svg class="progress-ring" viewBox="0 0 36 36">
+                <circle class="ring-bg" cx="18" cy="18" r="14" />
+                <circle class="ring-fg" id="geminiWeeklyRing" cx="18" cy="18" r="14" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="quota-row" id="rowGemini5h">
+          <div class="quota-info">
+            <div class="quota-label">5 Hour</div>
+            <div class="quota-reset" id="gemini5hReset">-</div>
+          </div>
+          <div class="quota-val-container">
+            <span class="quota-delta" id="gemini5hDelta"></span>
+            <span class="quota-percent" id="gemini5hPct">--%</span>
+            <div class="ring-wrap">
+              <svg class="progress-ring" viewBox="0 0 36 36">
+                <circle class="ring-bg" cx="18" cy="18" r="14" />
+                <circle class="ring-fg" id="gemini5hRing" cx="18" cy="18" r="14" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="group-divider"></div>
+
+      <!-- Claude & GPT Section -->
+      <section class="model-group">
+        <div class="group-header">
+          <span class="group-title">Claude &amp; GPT models</span>
+        </div>
+
+        <div class="quota-row" id="rowClaudeWeekly">
+          <div class="quota-info">
+            <div class="quota-label">Weekly</div>
+            <div class="quota-reset" id="claudeWeeklyReset"></div>
+          </div>
+          <div class="quota-val-container">
+            <span class="quota-delta" id="claudeWeeklyDelta"></span>
+            <span class="quota-percent" id="claudeWeeklyPct">--%</span>
+            <div class="ring-wrap">
+              <svg class="progress-ring" viewBox="0 0 36 36">
+                <circle class="ring-bg" cx="18" cy="18" r="14" />
+                <circle class="ring-fg" id="claudeWeeklyRing" cx="18" cy="18" r="14" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="quota-row" id="rowClaude5h">
+          <div class="quota-info">
+            <div class="quota-label">5 Hour</div>
+            <div class="quota-reset" id="claude5hReset"></div>
+          </div>
+          <div class="quota-val-container">
+            <span class="quota-delta" id="claude5hDelta"></span>
+            <span class="quota-percent" id="claude5hPct">--%</span>
+            <div class="ring-wrap">
+              <svg class="progress-ring" viewBox="0 0 36 36">
+                <circle class="ring-bg" cx="18" cy="18" r="14" />
+                <circle class="ring-fg" id="claude5hRing" cx="18" cy="18" r="14" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="widget-footer">
+      <div class="footer-status" id="footerStatus">
+        <span class="status-dot ok" id="statusDot"></span>
+        <span class="status-text" id="updatedText">连接中...</span>
+      </div>
+      <button class="refresh-btn no-drag" id="btnRefresh" title="刷新额度">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" id="refreshIcon">
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+    </footer>
+
+    <!-- Settings Overlay -->
+    <div class="settings-overlay no-drag" id="settingsOverlay">
+      <div class="settings-modal">
+        <div class="settings-header">
+          <span>设置</span>
+          <button class="icon-btn close-settings-btn" id="btnCloseSettings">✕</button>
+        </div>
+        
+        <div class="settings-content">
+          <div class="setting-item">
+            <span class="setting-title">始终置顶</span>
+            <label class="switch">
+              <input type="checkbox" id="chkAlwaysOnTop">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item column">
+            <div class="setting-header-row">
+              <span class="setting-title">窗口不透明度 (悬停恢复100%)</span>
+              <span class="setting-val-tag" id="opacityVal">95%</span>
+            </div>
+            <input type="range" id="rngOpacity" min="40" max="100" step="5" value="95" class="opacity-slider">
+          </div>
+
+          <div class="setting-item">
+            <span class="setting-title">额度恢复 100% 时通知提醒</span>
+            <label class="switch">
+              <input type="checkbox" id="chkNotifyRestore">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <span class="setting-title">贴近屏幕边缘自动吸附</span>
+            <label class="switch">
+              <input type="checkbox" id="chkSnapToEdge">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item column">
+            <span class="setting-title">自动刷新间隔</span>
+            <div class="chip-group" id="refreshChips">
+              <button class="chip" data-val="1">1分钟</button>
+              <button class="chip" data-val="5">5分钟</button>
+              <button class="chip" data-val="10">10分钟</button>
+              <button class="chip" data-val="30">30分钟</button>
+            </div>
+          </div>
+
+          <div class="setting-item column">
+            <span class="setting-title">低额度预警通知 (5-Hour)</span>
+            <div class="chip-group" id="notifyChips">
+              <button class="chip" data-val="0">关闭</button>
+              <button class="chip" data-val="10">10%</button>
+              <button class="chip" data-val="20">20%</button>
+              <button class="chip" data-val="30">30%</button>
+            </div>
+          </div>
+
+          <div class="setting-item">
+            <span class="setting-title">开机自动启动</span>
+            <label class="switch">
+              <input type="checkbox" id="chkStartWithWindows">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-actions">
+          <button class="primary-btn" id="btnSaveSettings">保存设置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

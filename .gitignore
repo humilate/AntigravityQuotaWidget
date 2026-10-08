@@ -1,0 +1,21 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# Logs
+*.log
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Temporary test artifacts
+test_write.txt
+quota_sample.json
+desktop_screen.png
+screenshot_widget.png
+top_right_screenshot.png
