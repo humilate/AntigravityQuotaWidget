@@ -839,6 +839,7 @@ input:checked + .slider:before {
 .widget-container.mode-mini .widget-footer,
 .widget-container.mode-mini .settings-overlay {
   display: none !important;
+  content-visibility: hidden;
 }
 
 .widget-container.mode-mini .mini-bar {

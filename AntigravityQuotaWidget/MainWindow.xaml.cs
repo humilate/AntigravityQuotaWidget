@@ -138,15 +138,122 @@ public partial class MainWindow : Window
     [System.Runtime.InteropServices.DllImport("psapi.dll")]
     private static extern int EmptyWorkingSet(IntPtr hwProc);
 
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, uint processId);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+    private struct PROCESSENTRY32
+    {
+        public uint dwSize;
+        public uint cntUsage;
+        public uint th32ProcessID;
+        public IntPtr th32DefaultHeapID;
+        public uint th32ModuleID;
+        public uint cntThreads;
+        public uint th32ParentProcessID;
+        public int pcPriClassBase;
+        public uint dwFlags;
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szExeFile;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+    private static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+    private static extern bool Process32First(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+    private static extern bool Process32Next(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+
+    private const uint TH32CS_SNAPPROCESS = 0x00000002;
+    private const uint PROCESS_SET_QUOTA = 0x0100;
+    private const uint PROCESS_QUERY_INFORMATION = 0x0400;
+
     public static void CompactMemory()
     {
         try
         {
             GC.Collect(2, GCCollectionMode.Aggressive, true, true);
             GC.WaitForPendingFinalizers();
-            EmptyWorkingSet(System.Diagnostics.Process.GetCurrentProcess().Handle);
+
+            var current = System.Diagnostics.Process.GetCurrentProcess();
+            EmptyWorkingSet(current.Handle);
+
+            // Trim working set of all child WebView2 helper processes
+            uint myPid = (uint)current.Id;
+            var childPids = GetChildProcessIds(myPid);
+            foreach (var pid in childPids)
+            {
+                try
+                {
+                    IntPtr hProc = OpenProcess(PROCESS_SET_QUOTA | PROCESS_QUERY_INFORMATION, false, pid);
+                    if (hProc != IntPtr.Zero)
+                    {
+                        EmptyWorkingSet(hProc);
+                        CloseHandle(hProc);
+                    }
+                }
+                catch { }
+            }
         }
         catch { }
+    }
+
+    private static HashSet<uint> GetChildProcessIds(uint parentPid)
+    {
+        var result = new HashSet<uint>();
+        IntPtr snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (snap == IntPtr.Zero || snap == (IntPtr)(-1)) return result;
+
+        try
+        {
+            var pe = new PROCESSENTRY32();
+            pe.dwSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<PROCESSENTRY32>();
+
+            var parentMap = new Dictionary<uint, List<uint>>();
+
+            if (Process32First(snap, ref pe))
+            {
+                do
+                {
+                    if (!parentMap.ContainsKey(pe.th32ParentProcessID))
+                    {
+                        parentMap[pe.th32ParentProcessID] = new List<uint>();
+                    }
+                    parentMap[pe.th32ParentProcessID].Add(pe.th32ProcessID);
+                }
+                while (Process32Next(snap, ref pe));
+            }
+
+            var queue = new Queue<uint>();
+            queue.Enqueue(parentPid);
+
+            while (queue.Count > 0)
+            {
+                uint p = queue.Dequeue();
+                if (parentMap.TryGetValue(p, out var children))
+                {
+                    foreach (var c in children)
+                    {
+                        if (result.Add(c))
+                        {
+                            queue.Enqueue(c);
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+        finally
+        {
+            CloseHandle(snap);
+        }
+
+        return result;
     }
 
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
@@ -487,7 +594,13 @@ public partial class MainWindow : Window
                 AdditionalBrowserArguments =
                     "--renderer-process-limit=1 " +
                     "--enable-low-end-device-mode " +
-                    "--disable-features=msWebOOUI,msPdfOOUI,Translate,MediaRouter,SpareRendererForSitePerProcess " +
+                    "--js-flags=\"--max-old-space-size=48\" " +
+                    "--disable-gpu-shader-disk-cache " +
+                    "--disable-gpu-program-cache " +
+                    "--disable-extensions " +
+                    "--disable-breakpad " +
+                    "--process-per-site " +
+                    "--disable-features=msWebOOUI,msPdfOOUI,Translate,MediaRouter,SpareRendererForSitePerProcess,msEdgeSidebarSupport,msReadAnything " +
                     "--disable-background-networking " +
                     "--disable-component-update " +
                     "--disable-sync " +
@@ -525,7 +638,8 @@ public partial class MainWindow : Window
             _conversationMonitorService.Start();
 
             BringToFront();
-            _ = Task.Delay(2500).ContinueWith(_ => Dispatcher.Invoke(CompactMemory));
+            _ = Task.Delay(3500).ContinueWith(_ => Dispatcher.Invoke(CompactMemory));
+            _ = Task.Delay(8000).ContinueWith(_ => Dispatcher.Invoke(CompactMemory));
             App.Log("MainWindow_Loaded successfully completed.");
         }
         catch (Exception ex)
