@@ -37,6 +37,7 @@ public partial class MainWindow : Window
         SetupTrayIcon();
 
         _notificationService = new NotificationService(_notifyIcon!);
+        _notificationService.OnBalloonClicked += id => _ = _antigravityService.OpenConversationAsync(id);
         _quotaService = new QuotaService(_antigravityService, _settingsService, _notificationService);
         _conversationMonitorService = new ConversationMonitorService(_settingsService, _notificationService);
 
@@ -601,6 +602,15 @@ public partial class MainWindow : Window
 
                     case "refresh":
                         _ = _quotaService.RefreshAsync();
+                        break;
+
+                    case "openConversation":
+                        string? convId = null;
+                        if (root.TryGetProperty("conversationId", out var convIdElem) && convIdElem.ValueKind == JsonValueKind.String)
+                        {
+                            convId = convIdElem.GetString();
+                        }
+                        _ = _antigravityService.OpenConversationAsync(convId);
                         break;
 
                     case "ready":

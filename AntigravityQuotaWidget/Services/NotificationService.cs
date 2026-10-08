@@ -10,10 +10,20 @@ public class NotificationService
     private string? _lastNotifiedResetTime;
     private int? _previousGemini5hPct;
     private int? _previousWeeklyPct;
+    private string? _lastCompletedId;
+
+    public event Action<string?>? OnBalloonClicked;
 
     public NotificationService(NotifyIcon notifyIcon)
     {
         _notifyIcon = notifyIcon;
+        _notifyIcon.BalloonTipClicked += (_, _) =>
+        {
+            if (!string.IsNullOrEmpty(_lastCompletedId))
+            {
+                OnBalloonClicked?.Invoke(_lastCompletedId);
+            }
+        };
     }
 
     public void CheckAndNotify(QuotaPayload currentQuota, WidgetSettings settings)
@@ -79,8 +89,9 @@ public class NotificationService
         }
     }
 
-    public void NotifyConversationCompleted(string conversationTitle, int durationSeconds, WidgetSettings settings)
+    public void NotifyConversationCompleted(string conversationTitle, int durationSeconds, WidgetSettings settings, string? conversationId = null)
     {
+        _lastCompletedId = conversationId;
         if (!settings.MonitorConversations) return;
 
         if (settings.NotifyOnConversationComplete)

@@ -237,7 +237,7 @@ public class ConversationMonitorService
                         App.Log($"[CONV_MONITOR] Conversation completed: {finished.Id} - {finished.Title} in {duration}s");
 
                         // Trigger notifications
-                        _notificationService.NotifyConversationCompleted(finished.Title, duration, _settingsService.CurrentSettings);
+                        _notificationService.NotifyConversationCompleted(finished.Title, duration, _settingsService.CurrentSettings, finished.Id);
                         OnConversationCompleted?.Invoke(_lastCompletedInfo);
 
                         _trackedConversations.Remove(fid);

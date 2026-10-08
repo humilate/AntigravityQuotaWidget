@@ -72,7 +72,7 @@
         <span class="mini-val" id="miniWeeklyVal">--%</span>
       </div>
       <div class="mini-divider mini-conv-divider" id="miniConvDivider" style="display: none;"></div>
-      <div class="mini-conv-badge" id="miniConvBadge" style="display: none;" title="正在进行中的对话">
+      <div class="mini-conv-badge no-drag" id="miniConvBadge" style="display: none;" title="点击跳转至对话">
         <span class="mini-conv-pulse" id="miniConvPulse"></span>
         <span class="mini-conv-icon" id="miniConvIcon">⚡</span>
         <span class="mini-conv-timer" id="miniConvTimer">0s</span>
@@ -87,7 +87,7 @@
     </div>
 
     <!-- Conversation Task Status Banner (Card Mode) -->
-    <div class="conv-status-banner idle" id="convStatusBanner">
+    <div class="conv-status-banner idle no-drag" id="convStatusBanner" title="点击跳转至 Antigravity 对话">
       <div class="conv-status-left">
         <div class="conv-status-icon-wrap" id="convStatusIconWrap">
           <span class="conv-pulse-ring" id="convPulseRing"></span>
@@ -98,7 +98,10 @@
           <div class="conv-status-desc" id="convStatusDesc">等待新指令 · 监控中</div>
         </div>
       </div>
-      <div class="conv-status-badge" id="convStatusBadge">就绪</div>
+      <div class="conv-status-right">
+        <div class="conv-status-badge" id="convStatusBadge">就绪</div>
+        <span class="conv-status-arrow" title="跳转至对话">↗</span>
+      </div>
     </div>
 
     <!-- Quota Content -->

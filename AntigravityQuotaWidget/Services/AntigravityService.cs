@@ -3,8 +3,10 @@ using System.IO;
 using System.Management;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.Data.Sqlite;
 using AntigravityQuotaWidget.Models;
 
 namespace AntigravityQuotaWidget.Services;
@@ -314,5 +316,280 @@ public class AntigravityService
             // Port not available or TLS error
         }
         return null;
+    }
+
+    #region Win32 Window Activation Interop
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("user32.dll")]
+    private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    private const int SW_RESTORE = 9;
+    private const int SW_SHOW = 5;
+
+    public static void ActivateWindow(IntPtr hWnd)
+    {
+        if (hWnd == IntPtr.Zero) return;
+
+        try
+        {
+            if (IsIconic(hWnd))
+            {
+                ShowWindow(hWnd, SW_RESTORE);
+            }
+            else
+            {
+                ShowWindow(hWnd, SW_SHOW);
+            }
+
+            IntPtr fgWnd = GetForegroundWindow();
+            uint fgThread = GetWindowThreadProcessId(fgWnd, out _);
+            uint targetThread = GetWindowThreadProcessId(hWnd, out _);
+
+            if (fgThread != 0 && targetThread != 0 && fgThread != targetThread)
+            {
+                AttachThreadInput(fgThread, targetThread, true);
+                BringWindowToTop(hWnd);
+                SetForegroundWindow(hWnd);
+                AttachThreadInput(fgThread, targetThread, false);
+            }
+            else
+            {
+                BringWindowToTop(hWnd);
+                SetForegroundWindow(hWnd);
+            }
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[OPEN_CONV] ActivateWindow error: {ex.Message}");
+        }
+    }
+
+    public static IntPtr FindAntigravityWindow()
+    {
+        try
+        {
+            var procs = Process.GetProcessesByName("Antigravity")
+                .Concat(Process.GetProcessesByName("antigravity"))
+                .ToList();
+
+            if (procs.Count == 0) return IntPtr.Zero;
+
+            var pids = procs.Select(p => p.Id).ToHashSet();
+
+            foreach (var p in procs)
+            {
+                try
+                {
+                    if (p.MainWindowHandle != IntPtr.Zero && IsWindowVisible(p.MainWindowHandle))
+                    {
+                        return p.MainWindowHandle;
+                    }
+                }
+                catch { }
+            }
+
+            IntPtr foundHwnd = IntPtr.Zero;
+            EnumWindows((hWnd, lParam) =>
+            {
+                if (!IsWindowVisible(hWnd)) return true;
+
+                GetWindowThreadProcessId(hWnd, out uint pid);
+                if (pids.Contains((int)pid))
+                {
+                    var sb = new StringBuilder(256);
+                    GetClassName(hWnd, sb, 256);
+                    string cls = sb.ToString();
+                    if (cls.Contains("Chrome_WidgetWin_1"))
+                    {
+                        foundHwnd = hWnd;
+                        return false;
+                    }
+                    if (foundHwnd == IntPtr.Zero)
+                    {
+                        foundHwnd = hWnd;
+                    }
+                }
+                return true;
+            }, IntPtr.Zero);
+
+            return foundHwnd;
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[OPEN_CONV] FindAntigravityWindow error: {ex.Message}");
+            return IntPtr.Zero;
+        }
+    }
+    #endregion
+
+    public static string? GetLatestConversationId()
+    {
+        try
+        {
+            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var dbPath = Path.Combine(userProfile, ".gemini", "antigravity", "conversation_summaries.db");
+            if (!File.Exists(dbPath)) return null;
+
+            var connStr = new SqliteConnectionStringBuilder
+            {
+                DataSource = dbPath,
+                Mode = SqliteOpenMode.ReadOnly,
+                Cache = SqliteCacheMode.Shared
+            }.ToString();
+
+            using var conn = new SqliteConnection(connStr);
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT conversation_id FROM conversation_summaries ORDER BY rowid DESC LIMIT 1;";
+            var res = cmd.ExecuteScalar();
+            return res?.ToString();
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[OPEN_CONV] GetLatestConversationId error: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static async Task<bool> SendSetBrowserOpenConversationAsync(int port, string token, bool isHttps, string conversationId)
+    {
+        try
+        {
+            var proto = isHttps ? "https" : "http";
+            var url = $"{proto}://127.0.0.1:{port}/exa.language_server_pb.LanguageServerService/SetBrowserOpenConversation";
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+            req.Headers.Add("x-codeium-csrf-token", token);
+            var payload = JsonSerializer.Serialize(new { cascadeId = conversationId });
+            req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+
+            var resp = await Client.SendAsync(req);
+            return resp.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> OpenConversationAsync(string? conversationId)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(conversationId))
+            {
+                conversationId = GetLatestConversationId();
+            }
+
+            App.Log($"[OPEN_CONV] Opening conversation: {conversationId}");
+
+            // 1. Notify language server via RPC
+            if (!string.IsNullOrEmpty(conversationId))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var (pid, token) = DiscoverProcess();
+                        if (_lastWorkingPort.HasValue)
+                        {
+                            await SendSetBrowserOpenConversationAsync(_lastWorkingPort.Value, token, _lastWorkingIsHttps, conversationId);
+                        }
+                        else
+                        {
+                            var ports = GetCandidatePorts(pid);
+                            foreach (var port in ports)
+                            {
+                                if (await SendSetBrowserOpenConversationAsync(port, token, false, conversationId) ||
+                                    await SendSetBrowserOpenConversationAsync(port, token, true, conversationId))
+                                {
+                                    _lastWorkingPort = port;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        App.Log($"[OPEN_CONV] SetBrowserOpenConversation warning: {ex.Message}");
+                    }
+                });
+            }
+
+            // 2. Bring Antigravity window to front via Win32
+            var hWnd = FindAntigravityWindow();
+            if (hWnd != IntPtr.Zero)
+            {
+                ActivateWindow(hWnd);
+            }
+
+            // 3. Launch Antigravity protocol / deep link
+            var localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var exePath = Path.Combine(localApp, "Programs", "antigravity", "Antigravity.exe");
+            string linkArg = string.IsNullOrEmpty(conversationId)
+                ? "antigravity://"
+                : $"antigravity://cascade/{conversationId}";
+
+            try
+            {
+                if (File.Exists(exePath))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        Arguments = linkArg,
+                        UseShellExecute = true
+                    });
+                }
+                else
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = linkArg,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                App.Log($"[OPEN_CONV] Process launch notice: {ex.Message}");
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[OPEN_CONV] OpenConversationAsync error: {ex.Message}");
+            return false;
+        }
     }
 }

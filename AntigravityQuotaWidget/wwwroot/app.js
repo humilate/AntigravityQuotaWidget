@@ -578,6 +578,8 @@ function formatSeconds(sec) {
 }
 
 let lastCompletedTimer = null;
+let currentConversationId = null;
+let currentConversationTitle = null;
 
 function renderConversationStatus(status) {
   if (!status) return;
@@ -591,6 +593,8 @@ function renderConversationStatus(status) {
     }
 
     const top = status.activeConversations[0];
+    currentConversationId = top.id || null;
+    currentConversationTitle = top.title || null;
     const durStr = formatSeconds(top.durationSeconds || 1);
     const titleStr = top.title || '当前对话';
 
@@ -599,7 +603,7 @@ function renderConversationStatus(status) {
     if (miniConvBadge) {
       miniConvBadge.style.display = 'flex';
       miniConvBadge.className = 'mini-conv-badge busy';
-      miniConvBadge.title = `正在进行中: 「${titleStr}」(已耗时 ${durStr})`;
+      miniConvBadge.title = `⚡ 正在进行中: 「${titleStr}」(已耗时 ${durStr})\n👉 点击跳转至 Antigravity 对话页面`;
     }
     if (miniConvIcon) miniConvIcon.textContent = '⚡';
     if (miniConvTimer) miniConvTimer.textContent = durStr;
@@ -607,7 +611,7 @@ function renderConversationStatus(status) {
     // Full Card Mode
     if (convStatusBanner) {
       convStatusBanner.className = 'conv-status-banner busy';
-      convStatusBanner.title = `正在生成: ${titleStr}`;
+      convStatusBanner.title = `⚡ 正在生成: ${titleStr}\n👉 点击跳转至 Antigravity 对话页面`;
     }
     if (convStatusIcon) convStatusIcon.textContent = '⚡';
     if (convStatusTitle) convStatusTitle.textContent = `进行中: ${titleStr}`;
@@ -615,6 +619,8 @@ function renderConversationStatus(status) {
     if (convStatusBadge) convStatusBadge.textContent = durStr;
 
   } else if (isMonitored && status.lastCompleted) {
+    currentConversationId = status.lastCompleted.id || null;
+    currentConversationTitle = status.lastCompleted.title || null;
     const durStr = formatSeconds(status.lastCompleted.durationSeconds || 1);
     const titleStr = status.lastCompleted.title || '当前对话';
 
@@ -623,7 +629,7 @@ function renderConversationStatus(status) {
     if (miniConvBadge) {
       miniConvBadge.style.display = 'flex';
       miniConvBadge.className = 'mini-conv-badge completed';
-      miniConvBadge.title = `「${titleStr}」已生成完成 (耗时 ${durStr})`;
+      miniConvBadge.title = `🎉 「${titleStr}」已生成完成 (耗时 ${durStr})\n👉 点击跳转至 Antigravity 对话页面`;
     }
     if (miniConvIcon) miniConvIcon.textContent = '✓';
     if (miniConvTimer) miniConvTimer.textContent = `完成 ${durStr}`;
@@ -631,7 +637,7 @@ function renderConversationStatus(status) {
     // Full Card Mode
     if (convStatusBanner) {
       convStatusBanner.className = 'conv-status-banner completed';
-      convStatusBanner.title = `「${titleStr}」已生成完成`;
+      convStatusBanner.title = `🎉 「${titleStr}」已生成完成\n👉 点击跳转至 Antigravity 对话页面`;
     }
     if (convStatusIcon) convStatusIcon.textContent = '🎉';
     if (convStatusTitle) convStatusTitle.textContent = '🎉 对话生成完毕！';
@@ -640,6 +646,9 @@ function renderConversationStatus(status) {
 
   } else {
     // Idle Mode
+    currentConversationId = null;
+    currentConversationTitle = null;
+
     if (miniConvDivider) miniConvDivider.style.display = 'none';
     if (miniConvBadge) {
       miniConvBadge.style.display = 'none';
@@ -648,13 +657,43 @@ function renderConversationStatus(status) {
 
     if (convStatusBanner) {
       convStatusBanner.className = 'conv-status-banner idle';
-      convStatusBanner.title = 'AI 对话监控就绪，随时响应';
+      convStatusBanner.title = 'AI 对话监控就绪 · 点击唤醒 Antigravity';
     }
     if (convStatusIcon) convStatusIcon.textContent = '🧠';
     if (convStatusTitle) convStatusTitle.textContent = '所有对话已就绪';
     if (convStatusDesc) convStatusDesc.textContent = '等待新指令 · 监控中';
     if (convStatusBadge) convStatusBadge.textContent = '就绪';
   }
+}
+
+// Conversation click navigation
+function triggerOpenConversation() {
+  if (convStatusBanner) {
+    convStatusBanner.classList.add('banner-clicked');
+    setTimeout(() => convStatusBanner.classList.remove('banner-clicked'), 350);
+  }
+  if (miniConvBadge) {
+    miniConvBadge.classList.add('banner-clicked');
+    setTimeout(() => miniConvBadge.classList.remove('banner-clicked'), 350);
+  }
+  sendHostMessage({
+    action: 'openConversation',
+    conversationId: currentConversationId || ''
+  });
+}
+
+if (convStatusBanner) {
+  convStatusBanner.addEventListener('click', (e) => {
+    e.stopPropagation();
+    triggerOpenConversation();
+  });
+}
+
+if (miniConvBadge) {
+  miniConvBadge.addEventListener('click', (e) => {
+    e.stopPropagation();
+    triggerOpenConversation();
+  });
 }
 
 // Action Buttons
