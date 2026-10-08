@@ -792,6 +792,7 @@ input:checked + .slider:before {
 }
 
 .widget-container.mode-mini .widget-header,
+.widget-container.mode-mini .conv-status-banner,
 .widget-container.mode-mini .quota-content,
 .widget-container.mode-mini .widget-footer,
 .widget-container.mode-mini .settings-overlay {
