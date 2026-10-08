@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private readonly AntigravityService _antigravityService;
     private readonly NotificationService _notificationService;
     private readonly QuotaService _quotaService;
+    private readonly ConversationMonitorService _conversationMonitorService;
 
     private NotifyIcon? _notifyIcon;
     private ToolStripMenuItem? _menuTopmost;
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
 
         _notificationService = new NotificationService(_notifyIcon!);
         _quotaService = new QuotaService(_antigravityService, _settingsService, _notificationService);
+        _conversationMonitorService = new ConversationMonitorService(_settingsService, _notificationService);
 
         ApplyInitialWindowPosition();
 
@@ -62,16 +64,17 @@ public partial class MainWindow : Window
 
         if (_settingsService.CurrentSettings.IsMiniMode)
         {
-            Width = 200;
+            Width = 230;
             Height = 38;
         }
         else
         {
             Width = 320;
-            Height = 285;
+            Height = 310;
         }
 
         _quotaService.OnQuotaUpdated += OnQuotaUpdatedHandler;
+        _conversationMonitorService.OnStatusChanged += OnConversationStatusChangedHandler;
 
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
@@ -188,13 +191,13 @@ public partial class MainWindow : Window
         {
             if (isMini)
             {
-                Width = 200;
+                Width = 230;
                 Height = 38;
             }
             else
             {
                 Width = 320;
-                Height = 285;
+                Height = 310;
             }
 
             if (_menuMini != null) _menuMini.Checked = isMini;
@@ -516,8 +519,9 @@ public partial class MainWindow : Window
             webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
             webView.CoreWebView2.Navigate("http://app.local/index.html");
 
-            App.Log("Starting quotaService...");
+            App.Log("Starting quotaService and conversationMonitorService...");
             _quotaService.Start();
+            _conversationMonitorService.Start();
 
             BringToFront();
             _ = Task.Delay(2500).ContinueWith(_ => Dispatcher.Invoke(CompactMemory));
@@ -605,6 +609,7 @@ public partial class MainWindow : Window
                         {
                             SendToWeb("quotaUpdate", _quotaService.LastQuota);
                         }
+                        SendToWeb("conversationStatusUpdate", _conversationMonitorService.CurrentStatus);
                         break;
 
                     case "settingsOpened":
@@ -650,11 +655,13 @@ public partial class MainWindow : Window
                                     {
                                         SetMiniMode(newSettings.IsMiniMode);
                                     }
+                                    _conversationMonitorService.CheckStatus();
                                 });
                             }
                         }
                         break;
                 }
+
             }
         }
         catch (Exception ex)
@@ -679,6 +686,18 @@ public partial class MainWindow : Window
             Hide();
             CompactMemory();
         }
+        else
+        {
+            _conversationMonitorService.Stop();
+        }
+    }
+
+    private void OnConversationStatusChangedHandler(ConversationStatusPayload status)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            SendToWeb("conversationStatusUpdate", status);
+        });
     }
 
     private void OnQuotaUpdatedHandler(QuotaPayload payload)

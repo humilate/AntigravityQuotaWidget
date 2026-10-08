@@ -78,4 +78,41 @@ public class NotificationService
             }
         }
     }
+
+    public void NotifyConversationCompleted(string conversationTitle, int durationSeconds, WidgetSettings settings)
+    {
+        if (!settings.MonitorConversations) return;
+
+        if (settings.NotifyOnConversationComplete)
+        {
+            string durationText = durationSeconds > 0 ? $" (耗时 {FormatDuration(durationSeconds)})" : "";
+            string displayTitle = string.IsNullOrWhiteSpace(conversationTitle) ? "当前对话" : conversationTitle.Trim();
+            if (displayTitle.Length > 40) displayTitle = displayTitle.Substring(0, 37) + "...";
+
+            _notifyIcon.ShowBalloonTip(
+                4500,
+                "🎉 对话生成完毕！",
+                $"「{displayTitle}」已完成{durationText}。",
+                ToolTipIcon.Info
+            );
+        }
+
+        if (settings.SoundOnConversationComplete)
+        {
+            try
+            {
+                System.Media.SystemSounds.Asterisk.Play();
+            }
+            catch { }
+        }
+    }
+
+    private static string FormatDuration(int seconds)
+    {
+        if (seconds < 60) return $"{seconds}秒";
+        int mins = seconds / 60;
+        int secs = seconds % 60;
+        return secs > 0 ? $"{mins}分{secs}秒" : $"{mins}分钟";
+    }
 }
+

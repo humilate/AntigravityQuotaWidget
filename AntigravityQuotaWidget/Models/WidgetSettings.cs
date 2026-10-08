@@ -36,4 +36,14 @@ public class WidgetSettings
 
     [JsonPropertyName("snapToEdge")]
     public bool SnapToEdge { get; set; } = true;
+
+    [JsonPropertyName("monitorConversations")]
+    public bool MonitorConversations { get; set; } = true;
+
+    [JsonPropertyName("notifyOnConversationComplete")]
+    public bool NotifyOnConversationComplete { get; set; } = true;
+
+    [JsonPropertyName("soundOnConversationComplete")]
+    public bool SoundOnConversationComplete { get; set; } = true;
 }
+

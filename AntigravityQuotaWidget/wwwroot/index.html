@@ -71,6 +71,12 @@
         <span class="mini-label">周</span>
         <span class="mini-val" id="miniWeeklyVal">--%</span>
       </div>
+      <div class="mini-divider mini-conv-divider" id="miniConvDivider" style="display: none;"></div>
+      <div class="mini-conv-badge" id="miniConvBadge" style="display: none;" title="正在进行中的对话">
+        <span class="mini-conv-pulse" id="miniConvPulse"></span>
+        <span class="mini-conv-icon" id="miniConvIcon">⚡</span>
+        <span class="mini-conv-timer" id="miniConvTimer">0s</span>
+      </div>
       <div class="mini-actions no-drag">
         <button class="mini-btn" id="btnMiniExpand" title="展开为完整卡片 (双击亦可)">
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -78,6 +84,21 @@
           </svg>
         </button>
       </div>
+    </div>
+
+    <!-- Conversation Task Status Banner (Card Mode) -->
+    <div class="conv-status-banner idle" id="convStatusBanner">
+      <div class="conv-status-left">
+        <div class="conv-status-icon-wrap" id="convStatusIconWrap">
+          <span class="conv-pulse-ring" id="convPulseRing"></span>
+          <span class="conv-status-icon" id="convStatusIcon">🧠</span>
+        </div>
+        <div class="conv-status-text">
+          <div class="conv-status-title" id="convStatusTitle">所有对话已就绪</div>
+          <div class="conv-status-desc" id="convStatusDesc">等待新指令 · 监控中</div>
+        </div>
+      </div>
+      <div class="conv-status-badge" id="convStatusBadge">就绪</div>
     </div>
 
     <!-- Quota Content -->
@@ -218,6 +239,30 @@
             <span class="setting-title">贴近屏幕边缘自动吸附</span>
             <label class="switch">
               <input type="checkbox" id="chkSnapToEdge">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <span class="setting-title">监控对话生成进度</span>
+            <label class="switch">
+              <input type="checkbox" id="chkMonitorConv">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <span class="setting-title">对话完成时气泡提醒</span>
+            <label class="switch">
+              <input type="checkbox" id="chkNotifyConvComplete">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <span class="setting-title">对话完成时播放提示音</span>
+            <label class="switch">
+              <input type="checkbox" id="chkSoundConvComplete">
               <span class="slider"></span>
             </label>
           </div>

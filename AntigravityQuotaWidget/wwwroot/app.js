@@ -11,7 +11,10 @@ let currentSettings = {
   theme: 'dark',
   isMiniMode: false,
   notifyOnRestore: true,
-  snapToEdge: true
+  snapToEdge: true,
+  monitorConversations: true,
+  notifyOnConversationComplete: true,
+  soundOnConversationComplete: true
 };
 
 let isManualRefresh = false;
@@ -66,6 +69,22 @@ const miniDot5h = document.getElementById('miniDot5h');
 const miniWeeklyVal = document.getElementById('miniWeeklyVal');
 const miniDotWeekly = document.getElementById('miniDotWeekly');
 
+// Mini Conversation Elements
+const miniConvDivider = document.getElementById('miniConvDivider');
+const miniConvBadge = document.getElementById('miniConvBadge');
+const miniConvPulse = document.getElementById('miniConvPulse');
+const miniConvIcon = document.getElementById('miniConvIcon');
+const miniConvTimer = document.getElementById('miniConvTimer');
+
+// Card Mode Conversation Banner Elements
+const convStatusBanner = document.getElementById('convStatusBanner');
+const convStatusIconWrap = document.getElementById('convStatusIconWrap');
+const convPulseRing = document.getElementById('convPulseRing');
+const convStatusIcon = document.getElementById('convStatusIcon');
+const convStatusTitle = document.getElementById('convStatusTitle');
+const convStatusDesc = document.getElementById('convStatusDesc');
+const convStatusBadge = document.getElementById('convStatusBadge');
+
 // Status & Action Elements
 const statusDot = document.getElementById('statusDot');
 const updatedText = document.getElementById('updatedText');
@@ -83,10 +102,14 @@ const chkAlwaysOnTop = document.getElementById('chkAlwaysOnTop');
 const chkStartWithWindows = document.getElementById('chkStartWithWindows');
 const chkNotifyRestore = document.getElementById('chkNotifyRestore');
 const chkSnapToEdge = document.getElementById('chkSnapToEdge');
+const chkMonitorConv = document.getElementById('chkMonitorConv');
+const chkNotifyConvComplete = document.getElementById('chkNotifyConvComplete');
+const chkSoundConvComplete = document.getElementById('chkSoundConvComplete');
 const rngOpacity = document.getElementById('rngOpacity');
 const opacityVal = document.getElementById('opacityVal');
 const refreshChips = document.getElementById('refreshChips');
 const notifyChips = document.getElementById('notifyChips');
+
 
 // Send command to C# Host
 function sendHostMessage(msg) {
@@ -541,8 +564,97 @@ if (window.chrome && window.chrome.webview) {
     } else if (msg.type === 'settings') {
       currentSettings = msg.payload;
       syncSettingsUI();
+    } else if (msg.type === 'conversationStatusUpdate') {
+      renderConversationStatus(msg.payload);
     }
   });
+}
+
+function formatSeconds(sec) {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+let lastCompletedTimer = null;
+
+function renderConversationStatus(status) {
+  if (!status) return;
+
+  const isMonitored = currentSettings.monitorConversations !== false;
+
+  if (isMonitored && status.isBusy && status.activeConversations && status.activeConversations.length > 0) {
+    if (lastCompletedTimer) {
+      clearTimeout(lastCompletedTimer);
+      lastCompletedTimer = null;
+    }
+
+    const top = status.activeConversations[0];
+    const durStr = formatSeconds(top.durationSeconds || 1);
+    const titleStr = top.title || '当前对话';
+
+    // Mini Capsule Mode
+    if (miniConvDivider) miniConvDivider.style.display = 'block';
+    if (miniConvBadge) {
+      miniConvBadge.style.display = 'flex';
+      miniConvBadge.className = 'mini-conv-badge busy';
+      miniConvBadge.title = `正在进行中: 「${titleStr}」(已耗时 ${durStr})`;
+    }
+    if (miniConvIcon) miniConvIcon.textContent = '⚡';
+    if (miniConvTimer) miniConvTimer.textContent = durStr;
+
+    // Full Card Mode
+    if (convStatusBanner) {
+      convStatusBanner.className = 'conv-status-banner busy';
+      convStatusBanner.title = `正在生成: ${titleStr}`;
+    }
+    if (convStatusIcon) convStatusIcon.textContent = '⚡';
+    if (convStatusTitle) convStatusTitle.textContent = `进行中: ${titleStr}`;
+    if (convStatusDesc) convStatusDesc.textContent = `已耗时 ${durStr} · 正在思考与生成...`;
+    if (convStatusBadge) convStatusBadge.textContent = durStr;
+
+  } else if (isMonitored && status.lastCompleted) {
+    const durStr = formatSeconds(status.lastCompleted.durationSeconds || 1);
+    const titleStr = status.lastCompleted.title || '当前对话';
+
+    // Mini Capsule Mode
+    if (miniConvDivider) miniConvDivider.style.display = 'block';
+    if (miniConvBadge) {
+      miniConvBadge.style.display = 'flex';
+      miniConvBadge.className = 'mini-conv-badge completed';
+      miniConvBadge.title = `「${titleStr}」已生成完成 (耗时 ${durStr})`;
+    }
+    if (miniConvIcon) miniConvIcon.textContent = '✓';
+    if (miniConvTimer) miniConvTimer.textContent = `完成 ${durStr}`;
+
+    // Full Card Mode
+    if (convStatusBanner) {
+      convStatusBanner.className = 'conv-status-banner completed';
+      convStatusBanner.title = `「${titleStr}」已生成完成`;
+    }
+    if (convStatusIcon) convStatusIcon.textContent = '🎉';
+    if (convStatusTitle) convStatusTitle.textContent = '🎉 对话生成完毕！';
+    if (convStatusDesc) convStatusDesc.textContent = `「${titleStr}」耗时 ${durStr}`;
+    if (convStatusBadge) convStatusBadge.textContent = '✓ 完成';
+
+  } else {
+    // Idle Mode
+    if (miniConvDivider) miniConvDivider.style.display = 'none';
+    if (miniConvBadge) {
+      miniConvBadge.style.display = 'none';
+      miniConvBadge.className = 'mini-conv-badge';
+    }
+
+    if (convStatusBanner) {
+      convStatusBanner.className = 'conv-status-banner idle';
+      convStatusBanner.title = 'AI 对话监控就绪，随时响应';
+    }
+    if (convStatusIcon) convStatusIcon.textContent = '🧠';
+    if (convStatusTitle) convStatusTitle.textContent = '所有对话已就绪';
+    if (convStatusDesc) convStatusDesc.textContent = '等待新指令 · 监控中';
+    if (convStatusBadge) convStatusBadge.textContent = '就绪';
+  }
 }
 
 // Action Buttons
@@ -587,6 +699,9 @@ function syncSettingsUI() {
   chkStartWithWindows.checked = currentSettings.startWithWindows;
   if (chkNotifyRestore) chkNotifyRestore.checked = currentSettings.notifyOnRestore ?? true;
   if (chkSnapToEdge) chkSnapToEdge.checked = currentSettings.snapToEdge ?? true;
+  if (chkMonitorConv) chkMonitorConv.checked = currentSettings.monitorConversations ?? true;
+  if (chkNotifyConvComplete) chkNotifyConvComplete.checked = currentSettings.notifyOnConversationComplete ?? true;
+  if (chkSoundConvComplete) chkSoundConvComplete.checked = currentSettings.soundOnConversationComplete ?? true;
   
   if (rngOpacity) {
     const pct = Math.round((currentSettings.opacity || 0.95) * 100);
@@ -634,6 +749,9 @@ btnSaveSettings.addEventListener('click', () => {
   currentSettings.startWithWindows = chkStartWithWindows.checked;
   if (chkNotifyRestore) currentSettings.notifyOnRestore = chkNotifyRestore.checked;
   if (chkSnapToEdge) currentSettings.snapToEdge = chkSnapToEdge.checked;
+  if (chkMonitorConv) currentSettings.monitorConversations = chkMonitorConv.checked;
+  if (chkNotifyConvComplete) currentSettings.notifyOnConversationComplete = chkNotifyConvComplete.checked;
+  if (chkSoundConvComplete) currentSettings.soundOnConversationComplete = chkSoundConvComplete.checked;
   if (rngOpacity) currentSettings.opacity = parseInt(rngOpacity.value, 10) / 100;
 
   sendHostMessage({
@@ -643,6 +761,7 @@ btnSaveSettings.addEventListener('click', () => {
   sendHostMessage({ action: 'settingsClosed' });
   settingsOverlay.classList.remove('show');
 });
+
 
 // Request initial settings on load
 window.addEventListener('DOMContentLoaded', () => {
