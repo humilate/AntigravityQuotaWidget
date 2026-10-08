@@ -45,5 +45,8 @@ public class WidgetSettings
 
     [JsonPropertyName("soundOnConversationComplete")]
     public bool SoundOnConversationComplete { get; set; } = true;
+
+    [JsonPropertyName("launchWithAntigravity")]
+    public bool LaunchWithAntigravity { get; set; } = false;
 }
 

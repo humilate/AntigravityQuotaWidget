@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private NotifyIcon? _notifyIcon;
     private ToolStripMenuItem? _menuTopmost;
     private ToolStripMenuItem? _menuStartup;
+    private ToolStripMenuItem? _menuBindAntigravity;
     private ToolStripMenuItem? _menuMini;
     private bool _isClosing = false;
     private bool _isDragging = false;
@@ -477,6 +478,18 @@ public partial class MainWindow : Window
             Checked = _settingsService.CurrentSettings.StartWithWindows
         };
 
+        _menuBindAntigravity = new ToolStripMenuItem("🔗 随反重力联动启动", null, (_, _) =>
+        {
+            var s = _settingsService.CurrentSettings;
+            s.LaunchWithAntigravity = !s.LaunchWithAntigravity;
+            _settingsService.SaveSettings(s);
+            _menuBindAntigravity!.Checked = s.LaunchWithAntigravity;
+            BroadcastSettings();
+        })
+        {
+            Checked = _settingsService.CurrentSettings.LaunchWithAntigravity
+        };
+
         var menuExit = new ToolStripMenuItem("❌ 退出", null, (_, _) =>
         {
             _isClosing = true;
@@ -499,6 +512,7 @@ public partial class MainWindow : Window
         menu.Items.Add(_menuMini);
         menu.Items.Add(_menuTopmost);
         menu.Items.Add(_menuStartup);
+        menu.Items.Add(_menuBindAntigravity);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(menuExit);
 
@@ -772,6 +786,7 @@ public partial class MainWindow : Window
                                     ApplyWindowOpacity(newSettings.Opacity);
                                     if (_menuTopmost != null) _menuTopmost.Checked = newSettings.AlwaysOnTop;
                                     if (_menuStartup != null) _menuStartup.Checked = newSettings.StartWithWindows;
+                                    if (_menuBindAntigravity != null) _menuBindAntigravity.Checked = newSettings.LaunchWithAntigravity;
                                     if (_menuMini != null) _menuMini.Checked = newSettings.IsMiniMode;
                                     _quotaService.UpdatePollInterval(newSettings.RefreshIntervalMinutes);
                                     ApplyThemeToWindow(newSettings.Theme);

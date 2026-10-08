@@ -44,6 +44,7 @@ public class SettingsService
 
         // Sync startup state from registry
         CurrentSettings.StartWithWindows = CheckStartupInRegistry();
+        CurrentSettings.LaunchWithAntigravity = AntigravityBindingService.IsBindingActive();
     }
 
     public void SaveSettings(WidgetSettings newSettings)
@@ -60,6 +61,7 @@ public class SettingsService
             File.WriteAllText(ConfigFile, json);
 
             SetStartupInRegistry(CurrentSettings.StartWithWindows);
+            AntigravityBindingService.ApplyBinding(CurrentSettings.LaunchWithAntigravity);
         }
         catch (Exception ex)
         {
