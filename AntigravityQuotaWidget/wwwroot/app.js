@@ -101,6 +101,7 @@ const btnSaveSettings = document.getElementById('btnSaveSettings');
 const chkAlwaysOnTop = document.getElementById('chkAlwaysOnTop');
 const chkStartWithWindows = document.getElementById('chkStartWithWindows');
 const chkLaunchWithAntigravity = document.getElementById('chkLaunchWithAntigravity');
+const chkExitWithAntigravity = document.getElementById('chkExitWithAntigravity');
 const chkNotifyRestore = document.getElementById('chkNotifyRestore');
 const chkSnapToEdge = document.getElementById('chkSnapToEdge');
 const chkMonitorConv = document.getElementById('chkMonitorConv');
@@ -738,6 +739,7 @@ function syncSettingsUI() {
   chkAlwaysOnTop.checked = currentSettings.alwaysOnTop;
   chkStartWithWindows.checked = currentSettings.startWithWindows;
   if (chkLaunchWithAntigravity) chkLaunchWithAntigravity.checked = currentSettings.launchWithAntigravity ?? false;
+  if (chkExitWithAntigravity) chkExitWithAntigravity.checked = currentSettings.exitWithAntigravity ?? true;
   if (chkNotifyRestore) chkNotifyRestore.checked = currentSettings.notifyOnRestore ?? true;
   if (chkSnapToEdge) chkSnapToEdge.checked = currentSettings.snapToEdge ?? true;
   if (chkMonitorConv) chkMonitorConv.checked = currentSettings.monitorConversations ?? true;
@@ -769,6 +771,14 @@ function syncSettingsUI() {
   });
 }
 
+if (chkLaunchWithAntigravity && chkExitWithAntigravity) {
+  chkLaunchWithAntigravity.addEventListener('change', () => {
+    if (chkLaunchWithAntigravity.checked) {
+      chkExitWithAntigravity.checked = true;
+    }
+  });
+}
+
 refreshChips.addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
   if (!chip) return;
@@ -789,6 +799,7 @@ btnSaveSettings.addEventListener('click', () => {
   currentSettings.alwaysOnTop = chkAlwaysOnTop.checked;
   currentSettings.startWithWindows = chkStartWithWindows.checked;
   if (chkLaunchWithAntigravity) currentSettings.launchWithAntigravity = chkLaunchWithAntigravity.checked;
+  if (chkExitWithAntigravity) currentSettings.exitWithAntigravity = chkExitWithAntigravity.checked;
   if (chkNotifyRestore) currentSettings.notifyOnRestore = chkNotifyRestore.checked;
   if (chkSnapToEdge) currentSettings.snapToEdge = chkSnapToEdge.checked;
   if (chkMonitorConv) currentSettings.monitorConversations = chkMonitorConv.checked;

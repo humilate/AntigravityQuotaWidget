@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using AntigravityQuotaWidget.Models;
 using AntigravityQuotaWidget.Services;
@@ -23,9 +25,14 @@ public partial class MainWindow : Window
     private ToolStripMenuItem? _menuTopmost;
     private ToolStripMenuItem? _menuStartup;
     private ToolStripMenuItem? _menuBindAntigravity;
+    private ToolStripMenuItem? _menuExitWithAntigravity;
     private ToolStripMenuItem? _menuMini;
     private bool _isClosing = false;
     private bool _isDragging = false;
+
+    private DispatcherTimer? _antigravityLifecycleTimer;
+    private bool _hasSeenAntigravityRunning = false;
+    private int _antigravityAbsentCount = 0;
 
     public MainWindow()
     {
@@ -490,6 +497,18 @@ public partial class MainWindow : Window
             Checked = _settingsService.CurrentSettings.LaunchWithAntigravity
         };
 
+        _menuExitWithAntigravity = new ToolStripMenuItem("🚪 随反重力退出一并关闭", null, (_, _) =>
+        {
+            var s = _settingsService.CurrentSettings;
+            s.ExitWithAntigravity = !s.ExitWithAntigravity;
+            _settingsService.SaveSettings(s);
+            _menuExitWithAntigravity!.Checked = s.ExitWithAntigravity;
+            BroadcastSettings();
+        })
+        {
+            Checked = _settingsService.CurrentSettings.ExitWithAntigravity
+        };
+
         var menuExit = new ToolStripMenuItem("❌ 退出", null, (_, _) =>
         {
             _isClosing = true;
@@ -513,6 +532,7 @@ public partial class MainWindow : Window
         menu.Items.Add(_menuTopmost);
         menu.Items.Add(_menuStartup);
         menu.Items.Add(_menuBindAntigravity);
+        menu.Items.Add(_menuExitWithAntigravity);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(menuExit);
 
@@ -650,6 +670,7 @@ public partial class MainWindow : Window
             App.Log("Starting quotaService and conversationMonitorService...");
             _quotaService.Start();
             _conversationMonitorService.Start();
+            StartAntigravityLifecycleMonitor();
 
             BringToFront();
             _ = Task.Delay(3500).ContinueWith(_ => Dispatcher.Invoke(CompactMemory));
@@ -787,6 +808,7 @@ public partial class MainWindow : Window
                                     if (_menuTopmost != null) _menuTopmost.Checked = newSettings.AlwaysOnTop;
                                     if (_menuStartup != null) _menuStartup.Checked = newSettings.StartWithWindows;
                                     if (_menuBindAntigravity != null) _menuBindAntigravity.Checked = newSettings.LaunchWithAntigravity;
+                                    if (_menuExitWithAntigravity != null) _menuExitWithAntigravity.Checked = newSettings.ExitWithAntigravity;
                                     if (_menuMini != null) _menuMini.Checked = newSettings.IsMiniMode;
                                     _quotaService.UpdatePollInterval(newSettings.RefreshIntervalMinutes);
                                     ApplyThemeToWindow(newSettings.Theme);
@@ -827,7 +849,67 @@ public partial class MainWindow : Window
         }
         else
         {
+            _antigravityLifecycleTimer?.Stop();
             _conversationMonitorService.Stop();
+        }
+    }
+
+    private void StartAntigravityLifecycleMonitor()
+    {
+        _antigravityLifecycleTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1.5)
+        };
+        _antigravityLifecycleTimer.Tick += (_, _) => CheckAntigravityProcessLifetime();
+        _antigravityLifecycleTimer.Start();
+        App.Log("[Binding] Antigravity lifecycle monitor started.");
+    }
+
+    private void CheckAntigravityProcessLifetime()
+    {
+        var s = _settingsService.CurrentSettings;
+        if (!s.LaunchWithAntigravity || !s.ExitWithAntigravity)
+        {
+            _hasSeenAntigravityRunning = false;
+            _antigravityAbsentCount = 0;
+            return;
+        }
+
+        bool isRunning = false;
+        try
+        {
+            var procs = Process.GetProcessesByName("Antigravity");
+            isRunning = procs.Length > 0;
+            foreach (var p in procs)
+            {
+                p.Dispose();
+            }
+        }
+        catch
+        {
+            return;
+        }
+
+        if (isRunning)
+        {
+            _hasSeenAntigravityRunning = true;
+            _antigravityAbsentCount = 0;
+        }
+        else if (_hasSeenAntigravityRunning)
+        {
+            _antigravityAbsentCount++;
+            if (_antigravityAbsentCount >= 2)
+            {
+                App.Log("[Binding] Antigravity process exited. Shutting down widget completely.");
+                _antigravityLifecycleTimer?.Stop();
+                _isClosing = true;
+                if (_notifyIcon != null)
+                {
+                    _notifyIcon.Visible = false;
+                    _notifyIcon.Dispose();
+                }
+                Application.Current.Shutdown();
+            }
         }
     }
 

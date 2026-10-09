@@ -48,5 +48,8 @@ public class WidgetSettings
 
     [JsonPropertyName("launchWithAntigravity")]
     public bool LaunchWithAntigravity { get; set; } = false;
+
+    [JsonPropertyName("exitWithAntigravity")]
+    public bool ExitWithAntigravity { get; set; } = true;
 }
 
