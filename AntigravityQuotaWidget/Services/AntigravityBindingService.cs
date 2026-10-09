@@ -52,7 +52,7 @@ public static class AntigravityBindingService
                 return;
             }
 
-            var originalContent = File.ReadAllText(vbsPath, Encoding.UTF8);
+            var originalContent = File.ReadAllText(vbsPath);
 
             if (enable)
             {
@@ -95,7 +95,8 @@ public static class AntigravityBindingService
                     updatedContent = trimmed + "\r\n\r\n" + companionBlock + "\r\n";
                 }
 
-                File.WriteAllText(vbsPath, updatedContent, Encoding.UTF8);
+                // Windows Script Host supports UTF-16 LE with a BOM, but not a UTF-8 BOM.
+                File.WriteAllText(vbsPath, updatedContent, Encoding.Unicode);
                 App.Log($"[Binding] Antigravity companion launch enabled in: {vbsPath}");
             }
             else
@@ -104,7 +105,7 @@ public static class AntigravityBindingService
                 {
                     var pattern = @"\r?\n?" + Regex.Escape(BlockStart) + ".*?" + Regex.Escape(BlockEnd) + @"\r?\n?";
                     var updatedContent = Regex.Replace(originalContent, pattern, "\r\n", RegexOptions.Singleline).TrimEnd() + "\r\n";
-                    File.WriteAllText(vbsPath, updatedContent, Encoding.UTF8);
+                    File.WriteAllText(vbsPath, updatedContent, Encoding.Unicode);
                     App.Log($"[Binding] Antigravity companion launch cleanly removed from: {vbsPath}");
                 }
             }
