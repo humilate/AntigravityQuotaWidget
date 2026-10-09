@@ -772,6 +772,7 @@ function renderConversationStatus(status) {
       convMultiCard.style.display = 'flex';
 
       const hasActive = activeList.length > 0;
+      convMultiCard.className = `conv-multi-card ${hasActive ? 'busy' : 'completed'}`;
       if (convMultiPulseDot) {
         convMultiPulseDot.className = `conv-multi-pulse-dot ${hasActive ? '' : 'all-completed'}`;
       }
