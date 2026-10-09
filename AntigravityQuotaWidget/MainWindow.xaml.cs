@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Threading;
@@ -32,7 +33,8 @@ public partial class MainWindow : Window
 
     private DispatcherTimer? _antigravityLifecycleTimer;
     private bool _hasSeenAntigravityRunning = false;
-    private int _antigravityAbsentCount = 0;
+    private readonly HashSet<int> _watchedAntigravityPids = new();
+    private readonly object _lifecycleLock = new();
 
     public MainWindow()
     {
@@ -858,11 +860,11 @@ public partial class MainWindow : Window
     {
         _antigravityLifecycleTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(1.5)
+            Interval = TimeSpan.FromMilliseconds(300)
         };
         _antigravityLifecycleTimer.Tick += (_, _) => CheckAntigravityProcessLifetime();
         _antigravityLifecycleTimer.Start();
-        App.Log("[Binding] Antigravity lifecycle monitor started.");
+        App.Log("[Binding] High-speed Antigravity lifecycle monitor started (300ms poll + instant exit hook).");
     }
 
     private void CheckAntigravityProcessLifetime()
@@ -871,46 +873,123 @@ public partial class MainWindow : Window
         if (!s.LaunchWithAntigravity || !s.ExitWithAntigravity)
         {
             _hasSeenAntigravityRunning = false;
-            _antigravityAbsentCount = 0;
+            lock (_lifecycleLock)
+            {
+                _watchedAntigravityPids.Clear();
+            }
             return;
         }
 
-        bool isRunning = false;
+        Process[] procs;
         try
         {
-            var procs = Process.GetProcessesByName("Antigravity");
-            isRunning = procs.Length > 0;
-            foreach (var p in procs)
-            {
-                p.Dispose();
-            }
+            procs = Process.GetProcessesByName("Antigravity");
         }
         catch
         {
             return;
         }
 
-        if (isRunning)
+        if (procs.Length > 0)
         {
             _hasSeenAntigravityRunning = true;
-            _antigravityAbsentCount = 0;
-        }
-        else if (_hasSeenAntigravityRunning)
-        {
-            _antigravityAbsentCount++;
-            if (_antigravityAbsentCount >= 2)
+
+            // Hook any newly discovered Antigravity process for instantaneous exit notification
+            foreach (var p in procs)
             {
-                App.Log("[Binding] Antigravity process exited. Shutting down widget completely.");
+                int pid = p.Id;
+                bool shouldWatch = false;
+                lock (_lifecycleLock)
+                {
+                    if (!_watchedAntigravityPids.Contains(pid))
+                    {
+                        _watchedAntigravityPids.Add(pid);
+                        shouldWatch = true;
+                    }
+                }
+
+                if (shouldWatch)
+                {
+                    _ = WatchProcessExitAsync(p);
+                }
+                else
+                {
+                    p.Dispose();
+                }
+            }
+        }
+        else
+        {
+            // Polling fallback: if we have seen it running and now 0 processes remain, shut down immediately!
+            if (_hasSeenAntigravityRunning && !_isClosing)
+            {
+                TriggerFastShutdown("Polling confirmed 0 Antigravity processes");
+            }
+        }
+    }
+
+    private async Task WatchProcessExitAsync(Process proc)
+    {
+        try
+        {
+            await proc.WaitForExitAsync();
+        }
+        catch { }
+        finally
+        {
+            try { proc.Dispose(); } catch { }
+        }
+
+        // When any watched Antigravity process exits, check instantly if all are gone
+        CheckAndShutdownIfAllGone("Watched process exit event");
+    }
+
+    private void CheckAndShutdownIfAllGone(string source)
+    {
+        if (_isClosing) return;
+        var s = _settingsService.CurrentSettings;
+        if (!s.LaunchWithAntigravity || !s.ExitWithAntigravity || !_hasSeenAntigravityRunning) return;
+
+        try
+        {
+            var procs = Process.GetProcessesByName("Antigravity");
+            int count = procs.Length;
+            foreach (var p in procs) { p.Dispose(); }
+
+            if (count == 0)
+            {
+                TriggerFastShutdown(source);
+            }
+        }
+        catch { }
+    }
+
+    private void TriggerFastShutdown(string reason)
+    {
+        lock (_lifecycleLock)
+        {
+            if (_isClosing) return;
+            _isClosing = true;
+        }
+
+        App.Log($"[Binding] Antigravity exited ({reason}). Instant shutdown triggered.");
+
+        Dispatcher.Invoke(() =>
+        {
+            try
+            {
                 _antigravityLifecycleTimer?.Stop();
-                _isClosing = true;
                 if (_notifyIcon != null)
                 {
                     _notifyIcon.Visible = false;
                     _notifyIcon.Dispose();
                 }
-                Application.Current.Shutdown();
+                Hide(); // Hide floating window immediately so visual response is instant
             }
-        }
+            catch { }
+
+            Application.Current.Shutdown();
+        });
     }
 
     private void OnConversationStatusChangedHandler(ConversationStatusPayload status)
