@@ -751,7 +751,8 @@ function renderConversationStatus(status) {
           setTimeout(() => pill.classList.remove('banner-clicked'), 300);
           sendHostMessage({
             action: 'openConversation',
-            conversationId: item.id || ''
+            conversationId: item.id || '',
+            conversationTitle: item.title || ''
           });
         });
 
@@ -820,7 +821,8 @@ function renderConversationStatus(status) {
             setTimeout(() => row.classList.remove('banner-clicked'), 300);
             sendHostMessage({
               action: 'openConversation',
-              conversationId: item.id || ''
+              conversationId: item.id || '',
+              conversationTitle: item.title || ''
             });
           });
 
@@ -845,7 +847,8 @@ function triggerOpenConversation() {
   }
   sendHostMessage({
     action: 'openConversation',
-    conversationId: currentConversationId || ''
+    conversationId: currentConversationId || '',
+    conversationTitle: currentConversationTitle || ''
   });
 }
 

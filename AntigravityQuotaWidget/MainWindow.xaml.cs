@@ -778,11 +778,16 @@ public partial class MainWindow : Window
 
                     case "openConversation":
                         string? convId = null;
+                        string? convTitle = null;
                         if (root.TryGetProperty("conversationId", out var convIdElem) && convIdElem.ValueKind == JsonValueKind.String)
                         {
                             convId = convIdElem.GetString();
                         }
-                        _ = _antigravityService.OpenConversationAsync(convId);
+                        if (root.TryGetProperty("conversationTitle", out var convTitleElem) && convTitleElem.ValueKind == JsonValueKind.String)
+                        {
+                            convTitle = convTitleElem.GetString();
+                        }
+                        _ = _antigravityService.OpenConversationAsync(convId, convTitle);
                         break;
 
                     case "ready":

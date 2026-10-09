@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Management;
 using System.Net.Http;
+using System.Net.WebSockets;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -346,6 +347,9 @@ public class AntigravityService
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     [DllImport("user32.dll")]
@@ -440,6 +444,23 @@ public class AntigravityService
                 return true;
             }, IntPtr.Zero);
 
+            if (foundHwnd == IntPtr.Zero)
+            {
+                EnumWindows((hWnd, lParam) =>
+                {
+                    if (!IsWindowVisible(hWnd)) return true;
+                    var sb = new StringBuilder(256);
+                    GetWindowText(hWnd, sb, 256);
+                    string title = sb.ToString();
+                    if (title.Contains("Antigravity", StringComparison.OrdinalIgnoreCase))
+                    {
+                        foundHwnd = hWnd;
+                        return false;
+                    }
+                    return true;
+                }, IntPtr.Zero);
+            }
+
             return foundHwnd;
         }
         catch (Exception ex)
@@ -501,7 +522,151 @@ public class AntigravityService
         }
     }
 
-    public async Task<bool> OpenConversationAsync(string? conversationId)
+    public static async Task<bool> NavigateConversationViaCdpAsync(string conversationId)
+    {
+        try
+        {
+            // 1. Read DevToolsActivePort from %APPDATA%\Antigravity\DevToolsActivePort
+            int? devToolsPort = null;
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var portFile = Path.Combine(appData, "Antigravity", "DevToolsActivePort");
+            if (File.Exists(portFile))
+            {
+                var lines = await File.ReadAllLinesAsync(portFile);
+                if (lines.Length > 0 && int.TryParse(lines[0].Trim(), out int p))
+                {
+                    devToolsPort = p;
+                }
+            }
+
+            if (!devToolsPort.HasValue)
+            {
+                App.Log("[CDP_NAV] DevToolsActivePort file not found or invalid.");
+                return false;
+            }
+
+            // 2. Fetch page target from /json/list
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+            var listJson = await http.GetStringAsync($"http://127.0.0.1:{devToolsPort.Value}/json/list");
+            using var doc = JsonDocument.Parse(listJson);
+
+            string? wsUrl = null;
+            foreach (var elem in doc.RootElement.EnumerateArray())
+            {
+                if (elem.TryGetProperty("type", out var typeElem) && typeElem.GetString() == "page")
+                {
+                    if (elem.TryGetProperty("webSocketDebuggerUrl", out var wsElem))
+                    {
+                        var url = elem.TryGetProperty("url", out var u) ? u.GetString() ?? "" : "";
+                        if (url.Contains("127.0.0.1") || url.Contains("antigravity"))
+                        {
+                            wsUrl = wsElem.GetString();
+                            break;
+                        }
+                        wsUrl ??= wsElem.GetString();
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(wsUrl))
+            {
+                App.Log("[CDP_NAV] No suitable page target found in /json/list.");
+                return false;
+            }
+
+            // 3. Connect via ClientWebSocket and evaluate navigation script
+            using var ws = new ClientWebSocket();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            await ws.ConnectAsync(new Uri(wsUrl), cts.Token);
+
+            // First: Page.bringToFront to ensure Chromium prioritizes the window/tab
+            try
+            {
+                var btfReq = new { id = 1, method = "Page.bringToFront" };
+                var btfBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(btfReq));
+                await ws.SendAsync(new ArraySegment<byte>(btfBytes), WebSocketMessageType.Text, true, cts.Token);
+                var btfBuf = new byte[1024];
+                await ws.ReceiveAsync(new ArraySegment<byte>(btfBuf), cts.Token);
+            }
+            catch { }
+
+            // Second: Runtime.evaluate to switch conversation
+            string script = $@"
+(() => {{
+  const targetId = '{conversationId}';
+  // 1. If row exists in sidebar, click its anchor link
+  const row = document.querySelector('[data-cascade-id=""' + targetId + '""]');
+  if (row) {{
+    const a = row.querySelector('a') || row;
+    a.click();
+    return 'clicked-row';
+  }}
+  // 2. Otherwise navigate via TanStack router in React fiber
+  const anyElem = document.querySelector('[data-cascade-id]') || document.body.firstElementChild;
+  if (anyElem) {{
+    const fk = Object.keys(anyElem).find(k => k.startsWith('__reactFiber'));
+    let curr = fk ? anyElem[fk] : null;
+    let router = null;
+    while (curr) {{
+      if (curr.dependencies) {{
+        let dep = curr.dependencies.firstContext;
+        while (dep) {{
+          if (dep.memoizedValue && typeof dep.memoizedValue.navigate === 'function') {{
+            router = dep.memoizedValue;
+            break;
+          }}
+          dep = dep.next;
+        }}
+      }}
+      if (router) break;
+      curr = curr.return;
+    }}
+    if (router) {{
+      router.navigate({{ to: '/c/$cascadeId', params: {{ cascadeId: targetId }} }});
+      return 'fiber-router';
+    }}
+  }}
+  // 3. Fallback: window.location.href
+  window.location.href = window.location.origin + '/c/' + targetId;
+  return 'location-href';
+}})()
+";
+
+            var req = new
+            {
+                id = 2,
+                method = "Runtime.evaluate",
+                @params = new
+                {
+                    expression = script,
+                    returnByValue = true
+                }
+            };
+
+            var reqBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
+            await ws.SendAsync(new ArraySegment<byte>(reqBytes), WebSocketMessageType.Text, true, cts.Token);
+
+            var buf = new byte[2048];
+            var res = await ws.ReceiveAsync(new ArraySegment<byte>(buf), cts.Token);
+            var respText = Encoding.UTF8.GetString(buf, 0, res.Count);
+            App.Log($"[CDP_NAV] Result: {respText}");
+
+            try
+            {
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
+            }
+            catch { }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            App.Log($"[CDP_NAV] Error: {ex.Message}");
+            return false;
+        }
+    }
+
+    public async Task<bool> OpenConversationAsync(string? conversationId, string? conversationTitle = null)
     {
         try
         {
@@ -510,10 +675,24 @@ public class AntigravityService
                 conversationId = GetLatestConversationId();
             }
 
-            App.Log($"[OPEN_CONV] Opening conversation: {conversationId}");
+            App.Log($"[OPEN_CONV] Opening conversation: {conversationId} (Title: {conversationTitle ?? "N/A"})");
 
-            // 1. Notify language server via RPC
+            // 1. Bring Antigravity window to front via Win32
+            var hWnd = FindAntigravityWindow();
+            if (hWnd != IntPtr.Zero)
+            {
+                ActivateWindow(hWnd);
+            }
+
+            // 2. Perform instant conversation navigation via CDP
+            bool cdpSuccess = false;
             if (!string.IsNullOrEmpty(conversationId))
+            {
+                cdpSuccess = await NavigateConversationViaCdpAsync(conversationId);
+            }
+
+            // 3. Fallback: Notify language server via RPC if CDP was not available
+            if (!cdpSuccess && !string.IsNullOrEmpty(conversationId))
             {
                 _ = Task.Run(async () =>
                 {
@@ -543,45 +722,34 @@ public class AntigravityService
                         App.Log($"[OPEN_CONV] SetBrowserOpenConversation warning: {ex.Message}");
                     }
                 });
+
+                // Launch Antigravity protocol / deep link as fallback
+                var localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                var exePath = Path.Combine(localApp, "Programs", "antigravity", "Antigravity.exe");
+                string linkArg = $"antigravity://cascade/{conversationId}";
+
+                try
+                {
+                    if (File.Exists(exePath))
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = exePath,
+                            Arguments = linkArg,
+                            UseShellExecute = true
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    App.Log($"[OPEN_CONV] Process launch notice: {ex.Message}");
+                }
             }
 
-            // 2. Bring Antigravity window to front via Win32
-            var hWnd = FindAntigravityWindow();
+            // 4. Ensure window is in foreground after navigation
             if (hWnd != IntPtr.Zero)
             {
                 ActivateWindow(hWnd);
-            }
-
-            // 3. Launch Antigravity protocol / deep link
-            var localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var exePath = Path.Combine(localApp, "Programs", "antigravity", "Antigravity.exe");
-            string linkArg = string.IsNullOrEmpty(conversationId)
-                ? "antigravity://"
-                : $"antigravity://cascade/{conversationId}";
-
-            try
-            {
-                if (File.Exists(exePath))
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = exePath,
-                        Arguments = linkArg,
-                        UseShellExecute = true
-                    });
-                }
-                else
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = linkArg,
-                        UseShellExecute = true
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                App.Log($"[OPEN_CONV] Process launch notice: {ex.Message}");
             }
 
             return true;
