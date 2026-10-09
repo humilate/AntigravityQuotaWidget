@@ -743,6 +743,27 @@ public partial class MainWindow : Window
                         }
                         break;
 
+                    case "setMiniWidth":
+                        if (_settingsService.CurrentSettings.IsMiniMode && root.TryGetProperty("width", out var wElem))
+                        {
+                            double targetW = Math.Max(230, Math.Min(340, wElem.GetDouble()));
+                            Dispatcher.Invoke(() =>
+                            {
+                                if (Math.Abs(Width - targetW) > 2)
+                                {
+                                    double oldW = Width;
+                                    Width = targetW;
+                                    var centerPt = new System.Drawing.Point((int)(Left + oldW / 2), (int)(Top + Height / 2));
+                                    var screen = System.Windows.Forms.Screen.FromPoint(centerPt);
+                                    if (Left + targetW > screen.WorkingArea.Right - 8)
+                                    {
+                                        Left = screen.WorkingArea.Right - targetW - 8;
+                                    }
+                                }
+                            });
+                        }
+                        break;
+
                     case "pinTopRight":
                         Dispatcher.Invoke(PinToTopRight);
                         break;

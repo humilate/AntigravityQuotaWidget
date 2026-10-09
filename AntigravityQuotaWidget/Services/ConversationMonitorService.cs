@@ -17,6 +17,7 @@ public class ConversationMonitorService
     private FileSystemWatcher? _fileWatcher;
     private DateTime _lastFileChangeTime = DateTime.MinValue;
     private readonly Dictionary<string, TrackedConversation> _trackedConversations = new();
+    private readonly List<CompletedConversationInfo> _recentCompletedList = new();
     private CompletedConversationInfo? _lastCompletedInfo;
     private DateTime _lastCompletedTime = DateTime.MinValue;
 
@@ -179,12 +180,18 @@ public class ConversationMonitorService
                         }
                     }
                 }
+                else
+                {
+                    _trackedConversations.Clear();
+                    _recentCompletedList.Clear();
+                }
 
                 var currentActiveIds = activeFromDb.Select(x => x.Id).ToHashSet();
 
                 // 1. Detect newly active conversations
                 foreach (var (id, title, steps, inputTime) in activeFromDb)
                 {
+                    _recentCompletedList.RemoveAll(c => c.Id == id);
                     if (!_trackedConversations.TryGetValue(id, out var tracked))
                     {
                         DateTime startUtc = DateTime.UtcNow;
@@ -225,20 +232,26 @@ public class ConversationMonitorService
                         }
                         if (duration <= 0) duration = 1;
 
-                        _lastCompletedInfo = new CompletedConversationInfo
+                        var completedInfo = new CompletedConversationInfo
                         {
                             Id = finished.Id,
                             Title = finished.Title,
                             DurationSeconds = duration,
-                            CompletedAt = DateTime.Now.ToString("HH:mm:ss")
+                            CompletedAt = DateTime.Now.ToString("HH:mm:ss"),
+                            CompletedUtc = DateTime.UtcNow
                         };
+                        _lastCompletedInfo = completedInfo;
                         _lastCompletedTime = DateTime.UtcNow;
+
+                        // Add or replace in _recentCompletedList
+                        _recentCompletedList.RemoveAll(c => c.Id == finished.Id);
+                        _recentCompletedList.Add(completedInfo);
 
                         App.Log($"[CONV_MONITOR] Conversation completed: {finished.Id} - {finished.Title} in {duration}s");
 
                         // Trigger notifications
                         _notificationService.NotifyConversationCompleted(finished.Title, duration, _settingsService.CurrentSettings, finished.Id);
-                        OnConversationCompleted?.Invoke(_lastCompletedInfo);
+                        OnConversationCompleted?.Invoke(completedInfo);
 
                         _trackedConversations.Remove(fid);
                     }
@@ -259,23 +272,16 @@ public class ConversationMonitorService
                     });
                 }
 
-                // Keep last completed info active for 10 seconds
-                CompletedConversationInfo? recentCompleted = null;
-                if (_lastCompletedInfo != null && (DateTime.UtcNow - _lastCompletedTime).TotalSeconds < 10)
-                {
-                    recentCompleted = _lastCompletedInfo;
-                }
-                else
-                {
-                    _lastCompletedInfo = null;
-                }
+                // Keep completed info active for 12 seconds
+                _recentCompletedList.RemoveAll(c => (DateTime.UtcNow - c.CompletedUtc).TotalSeconds > 12);
 
                 var payload = new ConversationStatusPayload
                 {
                     IsBusy = activeList.Count > 0,
                     ActiveCount = activeList.Count,
                     ActiveConversations = activeList,
-                    LastCompleted = recentCompleted
+                    CompletedConversations = _recentCompletedList.ToList(),
+                    LastCompleted = _recentCompletedList.LastOrDefault()
                 };
 
                 CurrentStatus = payload;

@@ -13,6 +13,9 @@ public class ConversationStatusPayload
     [JsonPropertyName("activeConversations")]
     public List<ActiveConversationInfo> ActiveConversations { get; set; } = new();
 
+    [JsonPropertyName("completedConversations")]
+    public List<CompletedConversationInfo> CompletedConversations { get; set; } = new();
+
     [JsonPropertyName("lastCompleted")]
     public CompletedConversationInfo? LastCompleted { get; set; }
 }
@@ -48,4 +51,7 @@ public class CompletedConversationInfo
 
     [JsonPropertyName("completedAt")]
     public string CompletedAt { get; set; } = "";
+
+    [JsonIgnore]
+    public DateTime CompletedUtc { get; set; } = DateTime.UtcNow;
 }

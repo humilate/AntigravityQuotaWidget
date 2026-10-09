@@ -364,6 +364,226 @@ body.draggable-area:active, .widget-container:active, .widget-header:active, .qu
   100% { transform: scale(0.95); opacity: 0.9; }
 }
 
+/* Multi-Conversation Card (Card Mode, count >= 2) */
+.conv-multi-card {
+  margin: 1px 0 5px 0;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(56, 189, 248, 0.09));
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  user-select: none;
+  transition: all 0.22s ease;
+}
+
+[data-theme="light"] .conv-multi-card {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(56, 189, 248, 0.06));
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+.conv-multi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.conv-multi-header-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.conv-multi-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 6px #38bdf8;
+  animation: multiPulseDot 1.6s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+.conv-multi-pulse-dot.all-completed {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+@keyframes multiPulseDot {
+  0%, 100% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+.conv-multi-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: #38bdf8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-multi-title.all-completed {
+  color: #10b981;
+}
+
+.conv-multi-count-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.conv-multi-count-tag.all-completed {
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.conv-multi-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+  max-height: 56px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  padding-right: 1px;
+}
+
+[data-theme="light"] .conv-multi-items {
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+
+.conv-row-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 2.5px 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+[data-theme="light"] .conv-row-item {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.conv-row-item:hover {
+  filter: brightness(1.12);
+  transform: translateY(-0.5px);
+  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .conv-row-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.conv-row-item:active {
+  transform: scale(0.985);
+}
+
+.conv-row-item.banner-clicked {
+  animation: bannerClickRipple 0.3s ease-out;
+}
+
+.conv-row-item.busy {
+  border-left: 2.5px solid #38bdf8;
+}
+
+.conv-row-item.completed {
+  border-left: 2.5px solid #10b981;
+}
+
+.conv-row-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.conv-row-icon {
+  font-size: 10px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.conv-row-item.busy .conv-row-icon {
+  color: #38bdf8;
+}
+
+.conv-row-item.completed .conv-row-icon {
+  color: #10b981;
+}
+
+.conv-row-title {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.conv-row-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.conv-row-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.conv-row-item.busy .conv-row-badge {
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+}
+
+.conv-row-item.completed .conv-row-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.32);
+}
+
+.conv-row-arrow {
+  font-size: 9px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.conv-row-item:hover .conv-row-arrow {
+  opacity: 1;
+  color: var(--accent-color);
+  transform: translate(1px, -1px);
+}
+
 /* Quota Content */
 
 .quota-content {
@@ -835,6 +1055,7 @@ input:checked + .slider:before {
 
 .widget-container.mode-mini .widget-header,
 .widget-container.mode-mini .conv-status-banner,
+.widget-container.mode-mini .conv-multi-card,
 .widget-container.mode-mini .quota-content,
 .widget-container.mode-mini .widget-footer,
 .widget-container.mode-mini .settings-overlay {
@@ -1014,6 +1235,69 @@ input:checked + .slider:before {
 @keyframes convIconSpin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Mini Conversation Pills Container (Item count >= 2) */
+.mini-conv-container {
+  display: flex;
+  align-items: center;
+  gap: 3.5px;
+  flex-shrink: 0;
+}
+
+.mini-conv-pill {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1.5px 5.5px;
+  border-radius: 9px;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.mini-conv-pill:hover {
+  filter: brightness(1.2);
+  transform: translateY(-0.5px);
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.35);
+}
+
+.mini-conv-pill:active {
+  transform: scale(0.92);
+}
+
+.mini-conv-pill.banner-clicked {
+  animation: miniBadgePulse 0.3s ease;
+}
+
+.mini-conv-pill.busy {
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  color: #38bdf8;
+}
+
+.mini-conv-pill.busy .mini-conv-pill-icon {
+  animation: convIconSpin 2.5s infinite linear;
+}
+
+.mini-conv-pill.completed {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.42);
+  color: #10b981;
+}
+
+.mini-conv-pill-icon {
+  font-size: 9px;
+  line-height: 1;
+}
+
+.mini-conv-pill-timer {
+  font-size: 9.5px;
+  line-height: 1;
 }
 
 /* Settings Header & Opacity Slider (Item 2) */

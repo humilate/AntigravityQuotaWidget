@@ -85,6 +85,14 @@ const convStatusTitle = document.getElementById('convStatusTitle');
 const convStatusDesc = document.getElementById('convStatusDesc');
 const convStatusBadge = document.getElementById('convStatusBadge');
 
+// Multi-Conversation Elements
+const miniConvContainer = document.getElementById('miniConvContainer');
+const convMultiCard = document.getElementById('convMultiCard');
+const convMultiPulseDot = document.getElementById('convMultiPulseDot');
+const convMultiHeaderTitle = document.getElementById('convMultiHeaderTitle');
+const convMultiCountTag = document.getElementById('convMultiCountTag');
+const convMultiItems = document.getElementById('convMultiItems');
+
 // Status & Action Elements
 const statusDot = document.getElementById('statusDot');
 const updatedText = document.getElementById('updatedText');
@@ -173,6 +181,9 @@ function toggleMiniMode() {
   sendHostMessage({
     action: 'toggleMiniMode'
   });
+  if (lastKnownStatus) {
+    renderConversationStatus(lastKnownStatus);
+  }
 }
 
 if (btnMiniMode) btnMiniMode.addEventListener('click', toggleMiniMode);
@@ -572,6 +583,15 @@ if (window.chrome && window.chrome.webview) {
   });
 }
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function formatSeconds(sec) {
   if (sec < 60) return `${sec}s`;
   const m = Math.floor(sec / 60);
@@ -582,82 +602,60 @@ function formatSeconds(sec) {
 let lastCompletedTimer = null;
 let currentConversationId = null;
 let currentConversationTitle = null;
+let lastKnownStatus = null;
 
 function renderConversationStatus(status) {
   if (!status) return;
+  lastKnownStatus = status;
 
   const isMonitored = currentSettings.monitorConversations !== false;
 
-  if (isMonitored && status.isBusy && status.activeConversations && status.activeConversations.length > 0) {
-    if (lastCompletedTimer) {
-      clearTimeout(lastCompletedTimer);
-      lastCompletedTimer = null;
-    }
+  // 1. Collect and sanitize active and recent completed lists
+  const activeList = (isMonitored && status.activeConversations) ? status.activeConversations.map(c => ({
+    id: c.id,
+    title: c.title || '当前对话',
+    durationSeconds: c.durationSeconds || 1,
+    isBusy: true
+  })) : [];
 
-    const top = status.activeConversations[0];
-    currentConversationId = top.id || null;
-    currentConversationTitle = top.title || null;
-    const durStr = formatSeconds(top.durationSeconds || 1);
-    const titleStr = top.title || '当前对话';
+  const completedSource = (isMonitored && status.completedConversations) ? status.completedConversations : [];
+  const activeIdSet = new Set(activeList.map(a => a.id));
+  const completedList = completedSource
+    .filter(c => !activeIdSet.has(c.id))
+    .map(c => ({
+      id: c.id,
+      title: c.title || '当前对话',
+      durationSeconds: c.durationSeconds || 1,
+      isBusy: false
+    }));
 
-    // Mini Capsule Mode
-    if (miniConvDivider) miniConvDivider.style.display = 'block';
-    if (miniConvBadge) {
-      miniConvBadge.style.display = 'flex';
-      miniConvBadge.className = 'mini-conv-badge busy';
-      miniConvBadge.title = `⚡ 正在进行中: 「${titleStr}」(已耗时 ${durStr})\n👉 点击跳转至 Antigravity 对话页面`;
-    }
-    if (miniConvIcon) miniConvIcon.textContent = '⚡';
-    if (miniConvTimer) miniConvTimer.textContent = durStr;
+  const allItems = [...activeList, ...completedList];
+  const totalCount = allItems.length;
 
-    // Full Card Mode
-    if (convStatusBanner) {
-      convStatusBanner.className = 'conv-status-banner busy';
-      convStatusBanner.title = `⚡ 正在生成: ${titleStr}\n👉 点击跳转至 Antigravity 对话页面`;
-    }
-    if (convStatusIcon) convStatusIcon.textContent = '⚡';
-    if (convStatusTitle) convStatusTitle.textContent = `进行中: ${titleStr}`;
-    if (convStatusDesc) convStatusDesc.textContent = `已耗时 ${durStr} · 正在思考与生成...`;
-    if (convStatusBadge) convStatusBadge.textContent = durStr;
-
-  } else if (isMonitored && status.lastCompleted) {
-    currentConversationId = status.lastCompleted.id || null;
-    currentConversationTitle = status.lastCompleted.title || null;
-    const durStr = formatSeconds(status.lastCompleted.durationSeconds || 1);
-    const titleStr = status.lastCompleted.title || '当前对话';
-
-    // Mini Capsule Mode
-    if (miniConvDivider) miniConvDivider.style.display = 'block';
-    if (miniConvBadge) {
-      miniConvBadge.style.display = 'flex';
-      miniConvBadge.className = 'mini-conv-badge completed';
-      miniConvBadge.title = `🎉 「${titleStr}」已生成完成 (耗时 ${durStr})\n👉 点击跳转至 Antigravity 对话页面`;
-    }
-    if (miniConvIcon) miniConvIcon.textContent = '✓';
-    if (miniConvTimer) miniConvTimer.textContent = `完成 ${durStr}`;
-
-    // Full Card Mode
-    if (convStatusBanner) {
-      convStatusBanner.className = 'conv-status-banner completed';
-      convStatusBanner.title = `🎉 「${titleStr}」已生成完成\n👉 点击跳转至 Antigravity 对话页面`;
-    }
-    if (convStatusIcon) convStatusIcon.textContent = '🎉';
-    if (convStatusTitle) convStatusTitle.textContent = '🎉 对话生成完毕！';
-    if (convStatusDesc) convStatusDesc.textContent = `「${titleStr}」耗时 ${durStr}`;
-    if (convStatusBadge) convStatusBadge.textContent = '✓ 完成';
-
-  } else {
-    // Idle Mode
+  if (totalCount === 0) {
+    // Idle Mode (no active or recent completed conversations)
     currentConversationId = null;
     currentConversationTitle = null;
 
+    // Mini Mode
     if (miniConvDivider) miniConvDivider.style.display = 'none';
     if (miniConvBadge) {
       miniConvBadge.style.display = 'none';
       miniConvBadge.className = 'mini-conv-badge';
     }
+    if (miniConvContainer) {
+      miniConvContainer.style.display = 'none';
+      miniConvContainer.innerHTML = '';
+    }
+    sendHostMessage({ action: 'setMiniWidth', width: 230 });
 
+    // Card Mode
+    if (convMultiCard) {
+      convMultiCard.style.display = 'none';
+      if (convMultiItems) convMultiItems.innerHTML = '';
+    }
     if (convStatusBanner) {
+      convStatusBanner.style.display = 'flex';
       convStatusBanner.className = 'conv-status-banner idle';
       convStatusBanner.title = 'AI 对话监控就绪 · 点击唤醒 Antigravity';
     }
@@ -665,10 +663,177 @@ function renderConversationStatus(status) {
     if (convStatusTitle) convStatusTitle.textContent = '所有对话已就绪';
     if (convStatusDesc) convStatusDesc.textContent = '等待新指令 · 监控中';
     if (convStatusBadge) convStatusBadge.textContent = '就绪';
+
+  } else if (totalCount === 1) {
+    // Single Conversation Mode
+    const item = allItems[0];
+    currentConversationId = item.id || null;
+    currentConversationTitle = item.title || null;
+    const durStr = formatSeconds(item.durationSeconds);
+    const titleStr = item.title;
+
+    // Mini Capsule Mode
+    if (miniConvDivider) miniConvDivider.style.display = 'block';
+    if (miniConvContainer) {
+      miniConvContainer.style.display = 'none';
+      miniConvContainer.innerHTML = '';
+    }
+    if (miniConvBadge) {
+      miniConvBadge.style.display = 'flex';
+      if (item.isBusy) {
+        miniConvBadge.className = 'mini-conv-badge busy';
+        miniConvBadge.title = `⚡ 正在进行中: 「${titleStr}」(已耗时 ${durStr})\n👉 点击跳转至 Antigravity 对话页面`;
+        if (miniConvIcon) miniConvIcon.textContent = '⚡';
+        if (miniConvTimer) miniConvTimer.textContent = durStr;
+      } else {
+        miniConvBadge.className = 'mini-conv-badge completed';
+        miniConvBadge.title = `🎉 「${titleStr}」已生成完成 (耗时 ${durStr})\n👉 点击跳转至 Antigravity 对话页面`;
+        if (miniConvIcon) miniConvIcon.textContent = '✓';
+        if (miniConvTimer) miniConvTimer.textContent = `完成 ${durStr}`;
+      }
+    }
+    sendHostMessage({ action: 'setMiniWidth', width: 230 });
+
+    // Card Mode
+    if (convMultiCard) {
+      convMultiCard.style.display = 'none';
+      if (convMultiItems) convMultiItems.innerHTML = '';
+    }
+    if (convStatusBanner) {
+      convStatusBanner.style.display = 'flex';
+      if (item.isBusy) {
+        convStatusBanner.className = 'conv-status-banner busy';
+        convStatusBanner.title = `⚡ 正在生成: ${titleStr}\n👉 点击跳转至 Antigravity 对话页面`;
+        if (convStatusIcon) convStatusIcon.textContent = '⚡';
+        if (convStatusTitle) convStatusTitle.textContent = `进行中: ${titleStr}`;
+        if (convStatusDesc) convStatusDesc.textContent = `已耗时 ${durStr} · 正在思考与生成...`;
+        if (convStatusBadge) convStatusBadge.textContent = durStr;
+      } else {
+        convStatusBanner.className = 'conv-status-banner completed';
+        convStatusBanner.title = `🎉 「${titleStr}」已生成完成\n👉 点击跳转至 Antigravity 对话页面`;
+        if (convStatusIcon) convStatusIcon.textContent = '🎉';
+        if (convStatusTitle) convStatusTitle.textContent = '🎉 对话生成完毕！';
+        if (convStatusDesc) convStatusDesc.textContent = `「${titleStr}」耗时 ${durStr}`;
+        if (convStatusBadge) convStatusBadge.textContent = '✓ 完成';
+      }
+    }
+
+  } else {
+    // Multi-Conversation Mode (totalCount >= 2)
+    currentConversationId = allItems[0].id || null;
+    currentConversationTitle = allItems[0].title || null;
+
+    // Mini Capsule Mode: Render individual clickable pills
+    if (miniConvDivider) miniConvDivider.style.display = 'block';
+    if (miniConvBadge) {
+      miniConvBadge.style.display = 'none';
+    }
+    if (miniConvContainer) {
+      miniConvContainer.style.display = 'flex';
+      miniConvContainer.innerHTML = '';
+
+      allItems.forEach(item => {
+        const durStr = formatSeconds(item.durationSeconds);
+        const pill = document.createElement('div');
+        pill.className = `mini-conv-pill ${item.isBusy ? 'busy' : 'completed'}`;
+        pill.title = item.isBusy
+          ? `⚡ 进行中: 「${item.title}」(已耗时 ${durStr})\n👉 点击跳转至该对话`
+          : `🎉 已完成: 「${item.title}」(耗时 ${durStr})\n👉 点击跳转至该对话`;
+
+        pill.innerHTML = `
+          <span class="mini-conv-pill-icon">${item.isBusy ? '⚡' : '✓'}</span>
+          <span class="mini-conv-pill-timer">${item.isBusy ? durStr : '✓ ' + durStr}</span>
+        `;
+
+        pill.addEventListener('click', (e) => {
+          e.stopPropagation();
+          pill.classList.add('banner-clicked');
+          setTimeout(() => pill.classList.remove('banner-clicked'), 300);
+          sendHostMessage({
+            action: 'openConversation',
+            conversationId: item.id || ''
+          });
+        });
+
+        miniConvContainer.appendChild(pill);
+      });
+    }
+
+    // Dynamic mini width adjustment for 2 or 3+ conversations
+    const targetWidth = totalCount === 2 ? 275 : 320;
+    sendHostMessage({ action: 'setMiniWidth', width: targetWidth });
+
+    // Card Mode: Render multi-task card list
+    if (convStatusBanner) {
+      convStatusBanner.style.display = 'none';
+    }
+    if (convMultiCard) {
+      convMultiCard.style.display = 'flex';
+
+      const hasActive = activeList.length > 0;
+      if (convMultiPulseDot) {
+        convMultiPulseDot.className = `conv-multi-pulse-dot ${hasActive ? '' : 'all-completed'}`;
+      }
+      if (convMultiHeaderTitle) {
+        convMultiHeaderTitle.className = `conv-multi-title ${hasActive ? '' : 'all-completed'}`;
+        if (hasActive) {
+          if (completedList.length > 0) {
+            convMultiHeaderTitle.textContent = `${activeList.length} 个进行中 · ${completedList.length} 个刚完成`;
+          } else {
+            convMultiHeaderTitle.textContent = `监测到 ${activeList.length} 个对话处理中`;
+          }
+        } else {
+          convMultiHeaderTitle.textContent = `${totalCount} 个对话近期已完成`;
+        }
+      }
+      if (convMultiCountTag) {
+        convMultiCountTag.className = `conv-multi-count-tag ${hasActive ? '' : 'all-completed'}`;
+        convMultiCountTag.textContent = hasActive ? `${totalCount} 任务` : `${totalCount} 完成`;
+      }
+
+      if (convMultiItems) {
+        const savedScroll = convMultiItems.scrollTop;
+        convMultiItems.innerHTML = '';
+
+        allItems.forEach(item => {
+          const durStr = formatSeconds(item.durationSeconds);
+          const row = document.createElement('div');
+          row.className = `conv-row-item ${item.isBusy ? 'busy' : 'completed'}`;
+          row.title = item.isBusy
+            ? `⚡ 进行中: 「${item.title}」(已耗时 ${durStr})\n👉 点击跳转至该对话`
+            : `🎉 已完成: 「${item.title}」(耗时 ${durStr})\n👉 点击跳转至该对话`;
+
+          row.innerHTML = `
+            <div class="conv-row-left">
+              <span class="conv-row-icon">${item.isBusy ? '⚡' : '✓'}</span>
+              <span class="conv-row-title">${escapeHtml(item.title)}</span>
+            </div>
+            <div class="conv-row-right">
+              <span class="conv-row-badge">${item.isBusy ? durStr : '✓ ' + durStr}</span>
+              <span class="conv-row-arrow">↗</span>
+            </div>
+          `;
+
+          row.addEventListener('click', (e) => {
+            e.stopPropagation();
+            row.classList.add('banner-clicked');
+            setTimeout(() => row.classList.remove('banner-clicked'), 300);
+            sendHostMessage({
+              action: 'openConversation',
+              conversationId: item.id || ''
+            });
+          });
+
+          convMultiItems.appendChild(row);
+        });
+
+        convMultiItems.scrollTop = savedScroll;
+      }
+    }
   }
 }
 
-// Conversation click navigation
+// Conversation click navigation for single banner & badge
 function triggerOpenConversation() {
   if (convStatusBanner) {
     convStatusBanner.classList.add('banner-clicked');
