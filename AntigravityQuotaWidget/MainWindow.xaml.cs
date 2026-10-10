@@ -324,32 +324,57 @@ public partial class MainWindow : Window
         });
     }
 
+    private Rect GetScreenWorkingAreaDpi(double wpfX, double wpfY)
+    {
+        double dpiX = 1.0;
+        double dpiY = 1.0;
+        try
+        {
+            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+            dpiX = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1.0;
+            dpiY = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1.0;
+        }
+        catch { }
+
+        int physicalX = (int)(wpfX * dpiX);
+        int physicalY = (int)(wpfY * dpiY);
+        var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(physicalX, physicalY));
+        var wa = screen.WorkingArea;
+
+        return new Rect(
+            wa.Left / dpiX,
+            wa.Top / dpiY,
+            wa.Width / dpiX,
+            wa.Height / dpiY
+        );
+    }
+
     public void ApplyMagneticSnap()
     {
         if (!_settingsService.CurrentSettings.SnapToEdge) return;
 
         try
         {
-            var centerPt = new System.Drawing.Point((int)(Left + Width / 2), (int)(Top + Height / 2));
-            var screen = System.Windows.Forms.Screen.FromPoint(centerPt);
-            var wa = screen.WorkingArea;
+            double curX = double.IsNaN(Left) ? 0 : Left;
+            double curY = double.IsNaN(Top) ? 0 : Top;
+            var wa = GetScreenWorkingAreaDpi(curX + Width / 2, curY + Height / 2);
 
             const double snapThreshold = 18.0;
 
-            if (Math.Abs(Left - wa.Left) < snapThreshold)
+            if (Math.Abs(curX - wa.Left) < snapThreshold)
             {
                 Left = wa.Left;
             }
-            else if (Math.Abs((Left + Width) - wa.Right) < snapThreshold)
+            else if (Math.Abs((curX + Width) - wa.Right) < snapThreshold)
             {
                 Left = wa.Right - Width;
             }
 
-            if (Math.Abs(Top - wa.Top) < snapThreshold)
+            if (Math.Abs(curY - wa.Top) < snapThreshold)
             {
                 Top = wa.Top;
             }
-            else if (Math.Abs((Top + Height) - wa.Bottom) < snapThreshold)
+            else if (Math.Abs((curY + Height) - wa.Bottom) < snapThreshold)
             {
                 Top = wa.Bottom - Height;
             }
@@ -586,9 +611,7 @@ public partial class MainWindow : Window
             double x = s.WindowX.Value;
             double y = s.WindowY.Value;
 
-            var pt = new System.Drawing.Point((int)(x + Width / 2), (int)(y + Height / 2));
-            var screen = System.Windows.Forms.Screen.FromPoint(pt);
-            var wa = screen.WorkingArea;
+            var wa = GetScreenWorkingAreaDpi(x + Width / 2, y + Height / 2);
 
             // Validate that the saved position intersects with or is near the screen
             if (x >= wa.Left - 100 && x + Width <= wa.Right + 100 &&
@@ -606,9 +629,9 @@ public partial class MainWindow : Window
 
     private void PinToTopRight()
     {
-        var centerPt = new System.Drawing.Point((int)(Left + Width / 2), (int)(Top + Height / 2));
-        var screen = System.Windows.Forms.Screen.FromPoint(centerPt);
-        var wa = screen.WorkingArea;
+        double curX = double.IsNaN(Left) ? 0 : Left;
+        double curY = double.IsNaN(Top) ? 0 : Top;
+        var wa = GetScreenWorkingAreaDpi(curX + Width / 2, curY + Height / 2);
         Left = wa.Right - Width - 24;
         Top = wa.Top + 24;
         _settingsService.UpdatePosition(Left, Top);
@@ -753,11 +776,10 @@ public partial class MainWindow : Window
                                 {
                                     double oldW = Width;
                                     Width = targetW;
-                                    var centerPt = new System.Drawing.Point((int)(Left + oldW / 2), (int)(Top + Height / 2));
-                                    var screen = System.Windows.Forms.Screen.FromPoint(centerPt);
-                                    if (Left + targetW > screen.WorkingArea.Right - 8)
+                                    var wa = GetScreenWorkingAreaDpi(Left + oldW / 2, Top + Height / 2);
+                                    if (Left + targetW > wa.Right - 8)
                                     {
-                                        Left = screen.WorkingArea.Right - targetW - 8;
+                                        Left = wa.Right - targetW - 8;
                                     }
                                 }
                             });
